@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Bubblily — Gestion Stock</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+--bg:#F8F7F2;--surface:#FFFFFF;--surface2:#F1EFE8;--border:rgba(0,0,0,0.1);
+--text:#2C2C2A;--text2:#5F5E5A;--text3:#888780;
+--accent:#1D9E75;--accent-light:#E1F5EE;
+--danger:#E24B4A;--danger-light:#FCEBEB;
+--amber:#BA7517;--amber-light:#FAEEDA;
+--blue:#185FA5;--blue-light:#E6F1FB;
+--purple:#534AB7;--purple-light:#EEEDFE;
+--radius:12px;--radius-sm:8px;
+}
+body{font-family:-apple-system,'SF Pro Text','Helvetica Neue',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;max-width:430px;margin:0 auto;}
+#login-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:32px 24px;}
+.login-logo{font-size:48px;margin-bottom:8px;}
+.login-title{font-size:22px;font-weight:700;letter-spacing:-0.5px;margin-bottom:4px;}
+.login-sub{font-size:13px;color:var(--text3);margin-bottom:32px;}
+.login-card{background:var(--surface);border-radius:var(--radius);border:0.5px solid var(--border);padding:20px;width:100%;}
+.login-error{background:var(--danger-light);color:var(--danger);font-size:12px;padding:8px 12px;border-radius:var(--radius-sm);margin-bottom:12px;display:none;}
+#app-screen{display:none;}
+.screen{display:none;flex-direction:column;min-height:100vh;}
+.screen.active{display:flex;}
+.header{background:var(--surface);border-bottom:0.5px solid var(--border);padding:12px 16px 10px;position:sticky;top:0;z-index:10;}
+.header-title{font-size:17px;font-weight:600;letter-spacing:-0.3px;}
+.header-sub{font-size:12px;color:var(--text3);margin-top:1px;}
+.content{flex:1;padding:12px 16px;overflow-y:auto;}
+.tabs{background:var(--surface);border-top:0.5px solid var(--border);display:flex;padding:6px 0 10px;position:sticky;bottom:0;}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px 0;cursor:pointer;background:none;border:none;color:var(--text3);font-size:9px;font-weight:500;}
+.tab.active{color:var(--accent);}
+.tab-icon{font-size:18px;line-height:1;}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 16px;border-radius:var(--radius-sm);border:none;font-size:14px;font-weight:500;cursor:pointer;width:100%;}
+.btn:active{opacity:.75;}
+.btn-primary{background:var(--accent);color:#fff;}
+.btn-secondary{background:var(--surface2);color:var(--text);}
+.btn-danger{background:var(--danger-light);color:var(--danger);}
+.btn-amber{background:var(--amber-light);color:var(--amber);}
+.btn-purple{background:var(--purple-light);color:var(--purple);}
+.btn-sm{padding:6px 12px;font-size:12px;width:auto;border-radius:6px;}
+.card{background:var(--surface);border-radius:var(--radius);border:0.5px solid var(--border);margin-bottom:10px;overflow:hidden;}
+.card-header{padding:12px 14px 8px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.card-title{font-size:13px;font-weight:600;}
+.card-body{padding:12px 14px;}
+.label{font-size:12px;color:var(--text2);margin-bottom:4px;}
+.input{width:100%;padding:8px 10px;border-radius:var(--radius-sm);border:0.5px solid var(--border);background:var(--bg);font-size:14px;color:var(--text);outline:none;}
+.input:focus{border-color:var(--accent);}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500;}
+.badge-green{background:var(--accent-light);color:var(--accent);}
+.badge-amber{background:var(--amber-light);color:var(--amber);}
+.badge-red{background:var(--danger-light);color:var(--danger);}
+.badge-blue{background:var(--blue-light);color:var(--blue);}
+.badge-purple{background:var(--purple-light);color:var(--purple);}
+.kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;}
+.kpi-card{background:var(--surface);border-radius:var(--radius-sm);border:0.5px solid var(--border);padding:10px 12px;}
+.kpi-label{font-size:11px;color:var(--text3);margin-bottom:2px;}
+.kpi-value{font-size:20px;font-weight:600;line-height:1.2;}
+.kpi-sub{font-size:11px;color:var(--text3);margin-top:1px;}
+.list-item{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:0.5px solid var(--border);}
+.list-item:last-child{border-bottom:none;}
+.list-name{font-size:13px;font-weight:500;}
+.list-sub{font-size:11px;color:var(--text3);margin-top:1px;}
+.progress-bar{height:4px;background:var(--surface2);border-radius:2px;overflow:hidden;margin-top:4px;}
+.progress-fill{height:100%;border-radius:2px;}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:100;align-items:flex-end;justify-content:center;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--surface);border-radius:20px 20px 0 0;width:100%;max-width:430px;padding:16px;max-height:90vh;overflow-y:auto;}
+.modal-handle{width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 16px;}
+.section-title{font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:16px 0 8px;}
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--text);color:#fff;padding:8px 16px;border-radius:20px;font-size:13px;z-index:200;opacity:0;transition:opacity .2s;white-space:nowrap;}
+.toast.show{opacity:1;}
+.empty-state{text-align:center;padding:40px 20px;color:var(--text3);font-size:13px;}
+.empty-icon{font-size:40px;margin-bottom:10px;}
+.alert{padding:10px 12px;border-radius:var(--radius-sm);font-size:12px;margin-bottom:10px;display:flex;align-items:flex-start;gap:8px;}
+.alert-amber{background:var(--amber-light);color:var(--amber);}
+.alert-red{background:var(--danger-light);color:var(--danger);}
+.alert-green{background:var(--accent-light);color:var(--accent);}
+.cat-chip{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500;cursor:pointer;border:0.5px solid transparent;background:var(--surface2);color:var(--text2);margin:2px;}
+.cat-chip.active{background:var(--accent-light);color:var(--accent);border-color:var(--accent);}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin:8px 0;}
+.cal-day{aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:6px;font-size:12px;cursor:pointer;border:none;background:none;color:var(--text2);}
+.cal-day.has-data{background:var(--accent-light);color:var(--accent);font-weight:600;}
+.cal-day.selected{background:var(--accent);color:#fff!important;font-weight:600;}
+.cal-day.other-month{color:var(--text3);opacity:.4;}
+.cal-day.today{border:1.5px solid var(--accent);}
+.cal-header-row{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:4px;}
+.cal-wday{text-align:center;font-size:10px;color:var(--text3);font-weight:500;}
+.ecart-table{width:100%;border-collapse:collapse;font-size:12px;}
+.ecart-table th{text-align:left;color:var(--text3);font-weight:500;padding:6px 4px;border-bottom:0.5px solid var(--border);font-size:11px;}
+.ecart-table td{padding:8px 4px;border-bottom:0.5px solid var(--border);}
+.ecart-table tr:last-child td{border-bottom:none;}
+.pill-row{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;}
+.pill{padding:5px 12px;border-radius:20px;font-size:12px;font-weight:500;cursor:pointer;border:0.5px solid var(--border);background:var(--surface);color:var(--text2);}
+.pill.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+.row{display:flex;gap:8px;align-items:center;margin-bottom:8px;}
+.role-badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;}
+.role-maitre{background:var(--purple-light);color:var(--purple);}
+.role-manager{background:var(--blue-light);color:var(--blue);}
+.spinner{display:inline-block;width:20px;height:20px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.loading-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:12px;color:var(--text3);}
+
+/* Grille produits caisse */
+.produit-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px;}
+.produit-card{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius);padding:12px 10px;display:flex;flex-direction:column;align-items:center;gap:8px;cursor:pointer;transition:border-color .15s;}
+.produit-card:active{opacity:.8;}
+.produit-card.selected{border-color:var(--accent);border-width:2px;background:var(--accent-light);}
+.produit-emoji{font-size:36px;line-height:1;}
+.produit-nom{font-size:14px;font-weight:600;text-align:center;line-height:1.2;}
+.produit-prix{font-size:13px;color:var(--text3);}
+.produit-qty-bar{display:flex;align-items:center;gap:8px;}
+.qty-btn{width:32px;height:32px;border-radius:50%;border:none;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:600;}
+.qty-btn-minus{background:var(--surface2);color:var(--text);}
+.qty-btn-plus{background:var(--accent);color:#fff;}
+.qty-val{font-size:18px;font-weight:700;min-width:28px;text-align:center;}
+</style>
+</head>
+<body>
+
+<div id="loading-screen" class="loading-screen">
+  <div style="font-size:40px;">🫧</div>
+  <div style="font-size:14px;color:var(--text3);">Chargement...</div>
+</div>
+
+<div id="login-screen" style="display:none;">
+  <div class="login-logo">🫧</div>
+  <div class="login-title">Bubblily</div>
+  <div class="login-sub">Gestion de stock</div>
+  <div class="login-card">
+    <div class="login-error" id="login-error"></div>
+    <div class="label">Email</div>
+    <input class="input" id="login-email" type="email" placeholder="votre@email.com" style="margin-bottom:10px;">
+    <div class="label">Mot de passe</div>
+    <input class="input" id="login-pwd" type="password" placeholder="••••••••" style="margin-bottom:16px;">
+    <button class="btn btn-primary" onclick="doLogin()" id="login-btn">Se connecter</button>
+  </div>
+</div>
+
+<div id="app-screen" style="display:none;">
+<div class="toast" id="toast"></div>
+
+<!-- RECETTES -->
+<div class="screen active" id="screen-recettes">
+  <div class="header">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <div><div class="header-title">📋 Recettes</div><div class="header-sub">Produits & matières premières</div></div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span id="role-badge-r" class="role-badge"></span>
+        <button onclick="doLogout()" style="background:none;border:none;font-size:11px;color:var(--text3);cursor:pointer;">Déco.</button>
+      </div>
+    </div>
+  </div>
+  <div class="content" id="recettes-content"></div>
+  <div style="padding:0 16px 12px;" id="btn-add-recette-wrap"><button class="btn btn-primary" onclick="openModal('modal-recette')">+ Nouvelle recette</button></div>
+  <div class="tabs" id="tabs-recettes"></div>
+</div>
+
+<!-- STOCK -->
+<div class="screen" id="screen-stock">
+  <div class="header">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <div><div class="header-title">📦 Stock</div><div class="header-sub" id="stock-date-label">Aucun inventaire</div></div>
+      <button class="btn btn-sm btn-amber" onclick="openModal('modal-inventaire')">+ Inventaire</button>
+    </div>
+  </div>
+  <div class="content" id="stock-content"></div>
+  <div class="tabs" id="tabs-stock"></div>
+</div>
+
+<!-- CAISSE -->
+<div class="screen" id="screen-caisse">
+  <div class="header"><div class="header-title">🧾 Caisse</div><div class="header-sub">Ventes & historique</div></div>
+  <div class="content" id="caisse-content"></div>
+  <div class="tabs" id="tabs-caisse"></div>
+</div>
+
+<!-- KPI -->
+<div class="screen" id="screen-kpi">
+  <div class="header">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <div><div class="header-title">📊 Analyse</div><div class="header-sub" id="kpi-mode-label">Vue globale</div></div>
+      <button class="btn btn-sm btn-danger" onclick="confirmReset()" id="btn-reset">Réinit.</button>
+    </div>
+  </div>
+  <div class="content" id="kpi-content"></div>
+  <div class="tabs" id="tabs-kpi"></div>
+</div>
+
+<!-- FINANCE (Maître uniquement) -->
+<div class="screen" id="screen-finance">
+  <div class="header">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <div><div class="header-title">💰 Finance</div><div class="header-sub">Marges & charges</div></div>
+      <span class="role-badge role-maitre">👑 Maître</span>
+    </div>
+  </div>
+  <div class="content" id="finance-content"></div>
+  <div class="tabs" id="tabs-finance"></div>
+</div>
+
+<!-- MODALS -->
+<div class="modal-overlay" id="modal-recette">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="card-title" style="margin-bottom:12px;" id="modal-recette-title">Nouvelle recette</div>
+    <div class="label">Catégorie</div>
+    <input class="input" id="r-cat" placeholder="Ex: Boulangerie, Boissons..." style="margin-bottom:10px;" list="cat-suggestions">
+    <datalist id="cat-suggestions"></datalist>
+    <div class="label">Nom du produit</div>
+    <input class="input" id="r-nom" placeholder="Ex: Croissant, Pizza..." style="margin-bottom:10px;">
+    <div class="label">Emoji (optionnel)</div>
+    <input class="input" id="r-emoji" placeholder="🥐" style="margin-bottom:10px;">
+    <div class="label">Prix de vente (DH)</div>
+    <div style="position:relative;margin-bottom:12px;">
+      <input class="input" id="r-prix" type="number" placeholder="0.00" step="0.01" style="padding-right:36px;">
+      <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--text3);font-weight:600;">DH</span>
+    </div>
+    <div class="label">Matières premières</div>
+    <div id="r-ingredients-list" style="margin-bottom:8px;"></div>
+    <button class="btn btn-secondary" style="margin-bottom:12px;" onclick="addIngredientLine()">+ Ajouter une matière première</button>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-secondary" onclick="closeModal('modal-recette')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveRecette()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-inventaire">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="card-title" style="margin-bottom:4px;">Nouvel inventaire réel</div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:12px;">Le prévisionnel précédent sera conservé pour comparaison</div>
+    <div id="inv-list"></div>
+    <div style="display:flex;gap:8px;margin-top:8px;">
+      <button class="btn btn-secondary" onclick="closeModal('modal-inventaire')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveInventaire()">Valider l'inventaire</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-vente">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="card-title" style="margin-bottom:4px;">Saisie des ventes</div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:12px;" id="vente-date-label"></div>
+    <div id="vente-list"></div>
+    <div style="border-top:0.5px solid var(--border);margin-top:12px;padding-top:12px;display:flex;align-items:center;justify-content:space-between;">
+      <div style="font-size:13px;color:var(--text2);">Total sélectionné</div>
+      <div style="font-size:18px;font-weight:700;color:var(--accent);" id="vente-total-preview">0.00 DH</div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button class="btn btn-secondary" onclick="closeModal('modal-vente')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveVente()">Valider les ventes</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-mp-detail">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div id="mp-detail-content"></div>
+    <button class="btn btn-secondary" style="margin-top:12px;" onclick="closeModal('modal-mp-detail')">Fermer</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-charge">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="card-title" style="margin-bottom:12px;" id="modal-charge-title">Nouvelle charge</div>
+    <div class="label">Nom de la charge</div>
+    <input class="input" id="ch-nom" placeholder="Ex: Loyer, Électricité..." style="margin-bottom:10px;" list="charge-suggestions">
+    <datalist id="charge-suggestions"></datalist>
+    <div class="label">Montant (DH)</div>
+    <div style="position:relative;margin-bottom:10px;">
+      <input class="input" id="ch-montant" type="number" placeholder="0.00" step="0.01" style="padding-right:36px;">
+      <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--text3);font-weight:600;">DH</span>
+    </div>
+    <div class="label">Type</div>
+    <select class="input" id="ch-type" style="margin-bottom:10px;">
+      <option value="fixe">Charge fixe (mensuelle récurrente)</option>
+      <option value="variable">Charge variable (ponctuelle)</option>
+    </select>
+    <div id="ch-mois-wrap" style="display:none;">
+      <div class="label">Mois concerné</div>
+      <input class="input" id="ch-mois" type="month" style="margin-bottom:10px;">
+    </div>
+    <div style="display:flex;gap:8px;margin-top:4px;">
+      <button class="btn btn-secondary" onclick="closeModal('modal-charge')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveCharge()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-correction">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="card-title" style="margin-bottom:4px;">Corriger les ventes du jour</div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:12px;">Modifiez ou supprimez des ventes d'aujourd'hui</div>
+    <div id="correction-list"></div>
+    <button class="btn btn-secondary" style="margin-top:12px;" onclick="closeModal('modal-correction')">Fermer</button>
+  </div>
+</div>
+</div><!-- /app-screen -->
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getDatabase, ref, set, get, onValue, update, push, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDFBxfAUt8T2eNobTjWri-e7ky1SlQOKQo",
+  authDomain: "bubblily-gestion.firebaseapp.com",
+  databaseURL: "https://bubblily-gestion-default-rtdb.firebaseio.com",
+  projectId: "bubblily-gestion",
+  storageBucket: "bubblily-gestion.firebasestorage.app",
+  messagingSenderId: "1048968399048",
+  appId: "1:1048968399048:web:0d32b27626b600113d3dfd"
+};
+const MAITRE_EMAIL = "abehrouz.nasreddine@gmail.com";
+const firebaseApp = initializeApp(firebaseConfig);
+const auth = getAuth(firebaseApp);
+const db = getDatabase(firebaseApp);
+
+// ==================== HELPERS ====================
+function fmtDH(val){return Number(val).toFixed(2)+' DH';}
+function fmtDate(d){return d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0')+'-'+d.getDate().toString().padStart(2,'0');}
+function monthKey(d){return d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0');}
+const MOIS=['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+const MOIS_SHORT=['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Aoû','Sep','Oct','Nov','Déc'];
+const EMOJIS_DEFAULT=['🧁','🥐','🍰','🍩','🥤','☕','🧃','🍫','🥪','🍕','🧇','🍪'];
+function getEmoji(r,i){return r.emoji||(EMOJIS_DEFAULT[i%EMOJIS_DEFAULT.length]);}
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400);}
+
+// ==================== STATE ====================
+let DB={recettes:[],matieres:{},stock:{},stockPrev:{},stockPrevDate:null,stockInitDate:null,inventaires:[],historique:[],ventes:[],prixMatieres:{},chargesFixes:[],chargesVariables:[]};
+let currentUser=null, userRole=null, unsubscribe=null;
+
+// ==================== AUTH ====================
+window.doLogin=async function(){
+  const email=document.getElementById('login-email').value.trim();
+  const pwd=document.getElementById('login-pwd').value;
+  const btn=document.getElementById('login-btn');
+  const errEl=document.getElementById('login-error');
+  errEl.style.display='none';
+  btn.innerHTML='<span class="spinner"></span>';btn.disabled=true;
+  try{await signInWithEmailAndPassword(auth,email,pwd);}
+  catch(e){
+    errEl.textContent='Email ou mot de passe incorrect.';
+    errEl.style.display='block';
+    btn.innerHTML='Se connecter';btn.disabled=false;
+  }
+};
+window.doLogout=async function(){if(unsubscribe)unsubscribe();await signOut(auth);};
+document.getElementById('login-pwd').addEventListener('keydown',e=>{if(e.key==='Enter')window.doLogin();});
+
+onAuthStateChanged(auth,user=>{
+  document.getElementById('loading-screen').style.display='none';
+  if(user){
+    currentUser=user;
+    userRole=user.email.toLowerCase()===MAITRE_EMAIL.toLowerCase()?'maitre':'manager';
+    document.getElementById('login-screen').style.display='none';
+    document.getElementById('app-screen').style.display='block';
+    applyRoleUI();startFirebaseSync();
+  } else {
+    currentUser=null;userRole=null;
+    if(unsubscribe){unsubscribe();unsubscribe=null;}
+    document.getElementById('app-screen').style.display='none';
+    document.getElementById('login-screen').style.display='flex';
+    document.getElementById('login-btn').innerHTML='Se connecter';
+    document.getElementById('login-btn').disabled=false;
+  }
+});
+
+function applyRoleUI(){
+  const isMaitre=userRole==='maitre';
+  const label=isMaitre?'👑 Maître':'👤 Manager';
+  const cls=isMaitre?'role-maitre':'role-manager';
+  document.getElementById('role-badge-r').className='role-badge '+cls;
+  document.getElementById('role-badge-r').textContent=label;
+  document.getElementById('btn-add-recette-wrap').style.display=isMaitre?'block':'none';
+  document.getElementById('btn-reset').style.display=isMaitre?'':'none';
+}
+
+// ==================== FIREBASE ====================
+function startFirebaseSync(){
+  const dbRef=ref(db,'stockapp');
+  unsubscribe=onValue(dbRef,snapshot=>{
+    const data=snapshot.val()||{};
+    DB.recettes=data.recettes?Object.values(data.recettes):[];
+    DB.matieres=data.matieres||{};
+    DB.stock=data.stock||{};
+    DB.stockPrev=data.stockPrev||{};
+    DB.stockPrevDate=data.stockPrevDate||null;
+    DB.stockInitDate=data.stockInitDate||null;
+    DB.inventaires=data.inventaires?Object.values(data.inventaires).sort((a,b)=>a.date>b.date?1:-1):[];
+    DB.historique=data.historique?Object.values(data.historique).sort((a,b)=>a.date>b.date?1:-1):[];
+    DB.ventes=data.ventes?Object.values(data.ventes).sort((a,b)=>a.date>b.date?1:-1):[];
+    DB.prixMatieres=data.prixMatieres||{};
+    DB.chargesFixes=data.chargesFixes?Object.values(data.chargesFixes):[];
+    DB.chargesVariables=data.chargesVariables?Object.values(data.chargesVariables):[];
+    rebuildMatieres();refreshCurrentScreen();
+  });
+}
+async function saveToFirebase(path,value){try{await set(ref(db,'stockapp/'+path),value);}catch(e){toast('❌ Erreur Firebase');}}
+async function pushToFirebase(path,value){try{await push(ref(db,'stockapp/'+path),value);}catch(e){toast('❌ Erreur Firebase');}}
+async function updateFirebase(updates){try{await update(ref(db,'stockapp'),updates);}catch(e){toast('❌ Erreur Firebase');}}
+async function removeFromFirebase(path){try{await remove(ref(db,'stockapp/'+path));}catch(e){toast('❌ Erreur Firebase');}}
+
+function refreshCurrentScreen(){
+  renderTabs();
+  if(currentScreen==='recettes')renderRecettes();
+  if(currentScreen==='stock')renderStock();
+  if(currentScreen==='caisse')renderCaisse();
+  if(currentScreen==='kpi')renderKPI();
+  if(currentScreen==='finance')renderFinance();
+}
+
+function rebuildMatieres(){
+  const map={};
+  DB.recettes.forEach(r=>{if(!r.ingredients)return;r.ingredients.forEach(ing=>{const k=ing.name.trim();if(!map[k])map[k]={unit:ing.unit,seuil:(DB.matieres[k]?.seuil)||0};});});
+  Object.keys(DB.matieres).forEach(k=>{if(map[k])map[k].seuil=DB.matieres[k].seuil||0;});
+  DB.matieres=map;
+}
+
+// ==================== NAV ====================
+function getTabsForRole(){
+  const base=[{id:'recettes',icon:'📋',label:'Recettes'},{id:'stock',icon:'📦',label:'Stock'},{id:'caisse',icon:'🧾',label:'Caisse'},{id:'kpi',icon:'📊',label:'Analyse'}];
+  if(userRole==='maitre')base.push({id:'finance',icon:'💰',label:'Finance'});
+  return base;
+}
+function renderTabs(){
+  const tabs=getTabsForRole();
+  tabs.forEach(tab=>{
+    const el=document.getElementById('tabs-'+tab.id);
+    if(!el)return;
+    el.innerHTML=tabs.map(t=>`<button class="tab ${t.id===tab.id?'active':''}" onclick="navigate('${t.id}')"><span class="tab-icon">${t.icon}</span><span>${t.label}</span></button>`).join('');
+  });
+}
+let currentScreen='recettes';
+window.navigate=function(id){
+  document.getElementById('screen-'+currentScreen).classList.remove('active');
+  document.getElementById('screen-'+id).classList.add('active');
+  currentScreen=id;renderTabs();
+  if(id==='recettes')renderRecettes();
+  if(id==='stock')renderStock();
+  if(id==='caisse')renderCaisse();
+  if(id==='kpi')renderKPI();
+  if(id==='finance')renderFinance();
+};
+
+// ==================== MODALS ====================
+window.openModal=function(id){
+  if(id==='modal-inventaire')buildInventaireForm();
+  if(id==='modal-vente')buildVenteForm();
+  if(id==='modal-recette'&&!editingRecetteIdx){
+    document.getElementById('modal-recette-title').textContent='Nouvelle recette';
+    ['r-cat','r-nom','r-prix','r-emoji'].forEach(x=>document.getElementById(x).value='');
+    document.getElementById('r-ingredients-list').innerHTML='';
+    addIngredientLine();refreshCatSuggestions();
+  }
+  if(id==='modal-charge'){
+    document.getElementById('modal-charge-title').textContent='Nouvelle charge';
+    document.getElementById('ch-nom').value='';
+    document.getElementById('ch-montant').value='';
+    document.getElementById('ch-type').value='fixe';
+    document.getElementById('ch-mois-wrap').style.display='none';
+    document.getElementById('ch-mois').value=monthKey(new Date());
+    refreshChargeSuggestions();
+  }
+  if(id==='modal-correction')buildCorrectionList();
+  document.getElementById(id).classList.add('open');
+};
+window.closeModal=function(id){document.getElementById(id).classList.remove('open');editingRecetteIdx=null;};
+document.querySelectorAll('.modal-overlay').forEach(o=>{o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');});});
+document.getElementById('ch-type').addEventListener('change',function(){
+  document.getElementById('ch-mois-wrap').style.display=this.value==='variable'?'block':'none';
+});
+
+// ==================== RECETTES ====================
+let editingRecetteIdx=null, activeCatFilter='all';
+function refreshCatSuggestions(){const cats=[...new Set(DB.recettes.map(r=>r.cat).filter(Boolean))];document.getElementById('cat-suggestions').innerHTML=cats.map(c=>`<option value="${c}">`).join('');}
+window.addIngredientLine=function(name='',qty='',unit=''){
+  const list=document.getElementById('r-ingredients-list');const idx=list.children.length;
+  const div=document.createElement('div');div.className='row';
+  div.innerHTML=`<input class="input" placeholder="Matière première" style="flex:2;" data-ing-name="${idx}" value="${name}"><input class="input" type="number" placeholder="Qté" style="flex:1;min-width:55px;" data-ing-qty="${idx}" step="0.001" value="${qty}"><input class="input" placeholder="Unité" style="flex:1;min-width:45px;" data-ing-unit="${idx}" value="${unit}"><button onclick="this.parentElement.remove()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--danger);">×</button>`;
+  list.appendChild(div);
+};
+window.editRecette=function(i){
+  if(userRole!=='maitre'){toast('⛔ Réservé au compte Maître');return;}
+  editingRecetteIdx=i;const r=DB.recettes[i];
+  document.getElementById('modal-recette-title').textContent='Modifier la recette';
+  document.getElementById('r-cat').value=r.cat||'';
+  document.getElementById('r-nom').value=r.nom;
+  document.getElementById('r-prix').value=r.prix;
+  document.getElementById('r-emoji').value=r.emoji||'';
+  document.getElementById('r-ingredients-list').innerHTML='';
+  r.ingredients.forEach(ing=>addIngredientLine(ing.name,ing.qty,ing.unit));
+  refreshCatSuggestions();
+  document.getElementById('modal-recette').classList.add('open');
+};
+window.deleteRecette=function(i){
+  if(userRole!=='maitre'){toast('⛔ Réservé au compte Maître');return;}
+  if(!confirm('Supprimer cette recette ?'))return;
+  const newR=[...DB.recettes];newR.splice(i,1);
+  saveToFirebase('recettes',newR.length?newR.reduce((o,r,j)=>{o[j]=r;return o;},{}):null);
+};
+window.saveRecette=async function(){
+  if(userRole!=='maitre'){toast('⛔ Réservé au compte Maître');return;}
+  const nom=document.getElementById('r-nom').value.trim();
+  const cat=document.getElementById('r-cat').value.trim()||'Sans catégorie';
+  const prix=parseFloat(document.getElementById('r-prix').value)||0;
+  const emoji=document.getElementById('r-emoji').value.trim()||'';
+  if(!nom){toast('❌ Nom requis');return;}
+  const names=document.querySelectorAll('[data-ing-name]');
+  const qtys=document.querySelectorAll('[data-ing-qty]');
+  const units=document.querySelectorAll('[data-ing-unit]');
+  const ingredients=[];
+  names.forEach((n,i)=>{const name=n.value.trim();const qty=parseFloat(qtys[i].value)||0;const unit=units[i].value.trim()||'unité';if(name&&qty>0)ingredients.push({name,qty,unit});});
+  if(ingredients.length===0){toast('❌ Au moins une matière première');return;}
+  const obj={id:editingRecetteIdx!==null?DB.recettes[editingRecetteIdx].id:Date.now(),nom,cat,prix,emoji,ingredients};
+  const newR=[...DB.recettes];
+  if(editingRecetteIdx!==null){newR[editingRecetteIdx]=obj;}else{newR.push(obj);}
+  await saveToFirebase('recettes',newR.reduce((o,r,j)=>{o[j]=r;return o;},{}));
+  closeModal('modal-recette');toast(editingRecetteIdx!==null?'✅ Recette modifiée':'✅ Recette enregistrée');editingRecetteIdx=null;
+};
+
+function renderRecettes(){
+  const c=document.getElementById('recettes-content');const isMaitre=userRole==='maitre';
+  const cats=['all',...new Set(DB.recettes.map(r=>r.cat||'Sans catégorie'))];
+  if(!cats.includes(activeCatFilter))activeCatFilter='all';
+  const filtered=activeCatFilter==='all'?DB.recettes:DB.recettes.filter(r=>(r.cat||'Sans catégorie')===activeCatFilter);
+  const mpAgg={};DB.recettes.forEach(r=>{if(!r.ingredients)return;r.ingredients.forEach(ing=>{const k=ing.name.trim();if(!mpAgg[k])mpAgg[k]={unit:ing.unit,recettes:[]};mpAgg[k].recettes.push(r.nom);});});
+  c.innerHTML=`
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">${cats.map(cat=>`<span class="cat-chip ${activeCatFilter===cat?'active':''}" onclick="setCatFilter('${cat}')">${cat==='all'?'Tous':cat}</span>`).join('')}</div>
+    ${filtered.length===0?`<div class="empty-state"><div class="empty-icon">📋</div>Aucune recette</div>`:
+      filtered.map((r,fi)=>{const i=DB.recettes.indexOf(r);return`<div class="card"><div class="card-header"><div><div style="font-size:10px;color:var(--text3);margin-bottom:2px;">${r.cat||'Sans catégorie'}</div><div style="display:flex;align-items:center;gap:6px;"><span style="font-size:20px;">${r.emoji||'🍽️'}</span><div class="card-title">${r.nom}</div></div></div><div style="display:flex;align-items:center;gap:6px;"><span class="badge badge-green">${fmtDH(r.prix)}</span>${isMaitre?`<button onclick="editRecette(${i})" style="background:var(--blue-light);border:none;color:var(--blue);font-size:12px;padding:4px 8px;border-radius:6px;cursor:pointer;">✏️</button><button onclick="deleteRecette(${i})" style="background:none;border:none;font-size:16px;cursor:pointer;color:var(--text3);">×</button>`:''}</div></div><div class="card-body" style="padding:8px 14px;">${(r.ingredients||[]).map(ing=>`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px;border-bottom:0.5px solid var(--border);"><span>${ing.name}</span><span style="color:var(--text3);">${ing.qty} ${ing.unit}</span></div>`).join('')}</div></div>`;}).join('')}
+    <div class="section-title">Matières premières — ${Object.keys(mpAgg).length} unique(s)</div>
+    <div class="card"><div class="card-body">${Object.keys(mpAgg).length===0?'<div style="color:var(--text3);font-size:12px;">Aucune</div>':Object.entries(mpAgg).map(([name,m])=>`<div class="list-item"><div><div class="list-name">${name}</div><div class="list-sub">${m.unit} · ${[...new Set(m.recettes)].join(', ')}</div></div><span class="badge badge-blue">${(DB.stock[name]||0).toFixed(2)}</span></div>`).join('')}</div></div>`;
+}
+window.setCatFilter=function(cat){activeCatFilter=cat;renderRecettes();};
+
+// ==================== INVENTAIRE ====================
+function buildInventaireForm(){
+  const list=document.getElementById('inv-list');const mps=Object.keys(DB.matieres);
+  if(mps.length===0){list.innerHTML='<div style="color:var(--text3);font-size:13px;text-align:center;padding:20px;">Aucune matière première.</div>';return;}
+  const prev=calcPrevisionnel();
+  list.innerHTML=mps.map(name=>{const p=prev[name]!==undefined?prev[name].toFixed(2):'—';const sid=name.replace(/[^a-zA-Z0-9]/g,'X');
+    return`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><div style="flex:2;"><div style="font-size:13px;font-weight:500;">${name}</div><div style="font-size:10px;color:var(--text3);">Prév: ${p} ${DB.matieres[name].unit}</div></div><input class="input" type="number" step="0.001" placeholder="0" style="flex:1.5;min-width:70px;" id="inv-${sid}"></div>`;
+  }).join('');
+}
+function calcPrevisionnel(){
+  if(!DB.stockInitDate)return{};const prev={};
+  Object.keys(DB.matieres).forEach(name=>{prev[name]=DB.stock[name]||0;});
+  const lastInvDate=DB.inventaires.length>0?DB.inventaires[DB.inventaires.length-1].date:null;
+  DB.recettes.forEach(r=>{if(!r.ingredients)return;const ventes=DB.ventes.filter(v=>v.recetteId===r.id&&(!lastInvDate||v.date>=lastInvDate));const total=ventes.reduce((s,v)=>s+v.qty,0);r.ingredients.forEach(ing=>{const k=ing.name.trim();prev[k]=(prev[k]||0)-ing.qty*total;});});
+  Object.keys(prev).forEach(name=>{prev[name]=Math.max(0,prev[name]||0);});return prev;
+}
+window.saveInventaire=async function(){
+  const mps=Object.keys(DB.matieres);const newStock={};
+  mps.forEach(name=>{const sid=name.replace(/[^a-zA-Z0-9]/g,'X');const inp=document.getElementById('inv-'+sid);const val=parseFloat(inp?.value);newStock[name]=isNaN(val)?DB.stock[name]||0:val;});
+  const now=new Date();const prevSnapshot=calcPrevisionnel();
+  await updateFirebase({stock:newStock,stockPrev:prevSnapshot,stockPrevDate:now.toISOString(),stockInitDate:DB.stockInitDate||now.toISOString()});
+  await pushToFirebase('inventaires',{date:now.toISOString(),stock:{...newStock},prevSnapshot});
+  await pushToFirebase('historique',{type:'inventaire',date:now.toISOString()});
+  closeModal('modal-inventaire');toast('✅ Inventaire validé');
+};
+
+// ==================== STOCK ====================
+function renderStock(){
+  const c=document.getElementById('stock-content');const mps=Object.keys(DB.matieres);
+  const dl=document.getElementById('stock-date-label');
+  if(DB.stockInitDate){const d=new Date(DB.stockInitDate);dl.textContent='Depuis le '+d.toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric'});}
+  else dl.textContent='Aucun inventaire initial';
+  if(mps.length===0){c.innerHTML=`<div class="empty-state"><div class="empty-icon">📦</div>Aucune matière première</div>`;return;}
+  if(!DB.stockInitDate){c.innerHTML=`<div class="alert alert-amber">⚠️ Faites un inventaire initial.</div>`+mps.map(name=>`<div class="card"><div class="card-body"><div class="list-item" style="border:none;padding:0;"><div><div class="list-name">${name}</div><div class="list-sub">${DB.matieres[name].unit}</div></div><span class="badge badge-blue">— non initialisé</span></div></div></div>`).join('');return;}
+  const prevDyn=calcPrevisionnel();const hasPrevSnap=DB.stockPrev&&Object.keys(DB.stockPrev).length>0;const lastInvNum=DB.inventaires.length;
+  const alerts=mps.filter(name=>prevDyn[name]<=0);const histInv=[...DB.inventaires].reverse().slice(0,10);
+  c.innerHTML=`
+    ${alerts.length>0?`<div class="alert alert-red">⚠️ ${alerts.length} matière(s) en rupture prévisionnelle</div>`:''}
+    ${lastInvNum>1&&hasPrevSnap?`<div class="alert alert-amber">📊 Comparaison prév. vs réel disponible</div>`:''}
+    <div class="section-title">Inventaires : ${lastInvNum} · ${mps.length} matières</div>
+    ${mps.map(name=>{
+      const reel=DB.stock[name]||0;const prev=prevDyn[name]||0;const prevSnap=hasPrevSnap&&lastInvNum>1?(DB.stockPrev[name]||0):null;
+      const isAlert=prev<=0;const isLow=prev>0&&prev<reel*0.2;const pct=reel>0?Math.min(100,(prev/reel)*100):0;const ecart=prevSnap!==null?(reel-prevSnap):null;
+      return`<div class="card" onclick="showMPDetail('${name}')"><div class="card-body">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><div class="list-name">${name} <span style="font-size:11px;color:var(--text3);font-weight:400;">${DB.matieres[name].unit}</span></div><span class="badge ${isAlert?'badge-red':isLow?'badge-amber':'badge-green'}">${isAlert?'Rupture':isLow?'Faible':'OK'}</span></div>
+        ${prevSnap!==null?`<div style="background:var(--surface2);border-radius:8px;padding:8px;margin-bottom:8px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;">
+          <div><div style="font-size:10px;color:var(--text3);">Prév. avant inv.</div><div style="font-size:13px;font-weight:600;color:var(--amber);">${prevSnap.toFixed(2)}</div></div>
+          <div><div style="font-size:10px;color:var(--text3);">Réel saisi</div><div style="font-size:13px;font-weight:600;color:var(--blue);">${reel.toFixed(2)}</div></div>
+          <div><div style="font-size:10px;color:var(--text3);">Écart</div><div style="font-size:13px;font-weight:600;color:${ecart>0.1?'var(--accent)':ecart<-0.1?'var(--danger)':'var(--text3)'};">${ecart>=0?'+':''}${ecart.toFixed(2)}</div></div>
+        </div>`:''}
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:11px;">
+          <div><div style="color:var(--text3);">Stock réel</div><div style="font-weight:600;">${reel.toFixed(2)}</div></div>
+          <div><div style="color:var(--text3);">Prév. actuel</div><div style="font-weight:600;color:${isAlert?'var(--danger)':'var(--accent)'};">${prev.toFixed(2)}</div></div>
+        </div>
+        <div class="progress-bar" style="margin-top:8px;"><div class="progress-fill" style="width:${pct.toFixed(0)}%;background:${isAlert?'var(--danger)':isLow?'var(--amber)':'var(--accent)'};"></div></div>
+      </div></div>`;
+    }).join('')}
+    <div class="section-title">Historique des inventaires</div>
+    ${histInv.length===0?'<div style="color:var(--text3);font-size:12px;text-align:center;padding:16px;">Aucun inventaire</div>':histInv.map(h=>`<div class="card"><div class="card-body"><div style="display:flex;align-items:center;justify-content:space-between;"><div><div class="list-name">📦 Inventaire réel</div><div class="list-sub">${new Date(h.date).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div></div><span class="badge badge-amber">Saisi</span></div></div></div>`).join('')}
+    <div style="height:8px;"></div>`;
+}
+window.showMPDetail=function(name){
+  const reel=DB.stock[name]||0;const prev=calcPrevisionnel()[name]||0;
+  const recettesUsing=DB.recettes.filter(r=>r.ingredients&&r.ingredients.some(i=>i.name.trim()===name));
+  const totalVentes=DB.ventes.reduce((acc,v)=>{acc[v.recetteId]=(acc[v.recetteId]||0)+v.qty;return acc;},{});
+  let conso=0;recettesUsing.forEach(r=>{const ing=r.ingredients.find(i=>i.name.trim()===name);if(ing)conso+=ing.qty*(totalVentes[r.id]||0);});
+  document.getElementById('mp-detail-content').innerHTML=`
+    <div class="card-title" style="margin-bottom:12px;">${name}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+      <div class="kpi-card"><div class="kpi-label">Stock réel</div><div class="kpi-value">${reel.toFixed(2)}</div><div class="kpi-sub">${DB.matieres[name]?.unit}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Prévisionnel</div><div class="kpi-value" style="color:var(--accent);">${prev.toFixed(2)}</div><div class="kpi-sub">${DB.matieres[name]?.unit}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Consommé total</div><div class="kpi-value" style="color:var(--danger);">${conso.toFixed(2)}</div><div class="kpi-sub">toutes ventes</div></div>
+    </div>
+    <div class="section-title">Utilisé dans ${recettesUsing.length} recette(s)</div>
+    ${recettesUsing.map(r=>{const ing=r.ingredients.find(i=>i.name.trim()===name);return`<div class="list-item"><div class="list-name">${r.nom}</div><span class="badge badge-blue">${ing?.qty} ${ing?.unit}/unité</span></div>`;}).join('')}`;
+  openModal('modal-mp-detail');
+};
+
+// ==================== CAISSE ====================
+let calMonth=new Date().getMonth(),calYear=new Date().getFullYear(),calSelectedDate=null;
+const tmpVente={};
+
+function buildVenteForm(){
+  const now=new Date();
+  document.getElementById('vente-date-label').textContent=now.toLocaleDateString('fr-FR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
+  Object.keys(tmpVente).forEach(k=>tmpVente[k]=0);
+  const list=document.getElementById('vente-list');
+  if(DB.recettes.length===0){list.innerHTML='<div style="color:var(--text3);text-align:center;padding:20px;">Aucune recette disponible</div>';return;}
+  const cats=[...new Set(DB.recettes.map(r=>r.cat||'Sans catégorie'))];
+  list.innerHTML=cats.map(cat=>{
+    const recs=DB.recettes.filter(r=>(r.cat||'Sans catégorie')===cat);
+    return`<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:10px 0 8px;">${cat}</div>
+    <div class="produit-grid">${recs.map((r,i)=>`
+      <div class="produit-card" id="pcard-${r.id}">
+        <div class="produit-emoji">${r.emoji||EMOJIS_DEFAULT[i%EMOJIS_DEFAULT.length]}</div>
+        <div class="produit-nom">${r.nom}</div>
+        <div class="produit-prix">${fmtDH(r.prix)}</div>
+        <div class="produit-qty-bar">
+          <button class="qty-btn qty-btn-minus" onclick="changeVenteQty(${r.id},-1,event)">−</button>
+          <span class="qty-val" id="vqty-${r.id}">0</span>
+          <button class="qty-btn qty-btn-plus" onclick="changeVenteQty(${r.id},1,event)">+</button>
+        </div>
+      </div>`).join('')}
+    </div>`;
+  }).join('');
+  updateVenteTotal();
+}
+
+function updateVenteTotal(){
+  let total=0;
+  DB.recettes.forEach(r=>{total+=(tmpVente[r.id]||0)*r.prix;});
+  const el=document.getElementById('vente-total-preview');
+  if(el)el.textContent=fmtDH(total);
+}
+
+window.changeVenteQty=function(id,delta,e){
+  if(e)e.stopPropagation();
+  tmpVente[id]=Math.max(0,(tmpVente[id]||0)+delta);
+  const el=document.getElementById('vqty-'+id);if(el)el.textContent=tmpVente[id];
+  const card=document.getElementById('pcard-'+id);
+  if(card)card.classList.toggle('selected',tmpVente[id]>0);
+  updateVenteTotal();
+};
+
+window.saveVente=async function(){
+  const now=new Date();let total=0;const entries=[];
+  DB.recettes.forEach(r=>{const qty=tmpVente[r.id]||0;if(qty>0){entries.push({recetteId:r.id,recetteNom:r.nom,qty,prixUnit:r.prix});total+=qty*r.prix;}});
+  if(entries.length===0){toast('Aucune vente saisie');return;}
+  for(const e of entries){await pushToFirebase('ventes',{recetteId:e.recetteId,recetteNom:e.recetteNom,qty:e.qty,prixUnit:e.prixUnit,date:now.toISOString()});}
+  await pushToFirebase('historique',{type:'vente',date:now.toISOString(),entries,total});
+  Object.keys(tmpVente).forEach(k=>tmpVente[k]=0);
+  closeModal('modal-vente');toast(`✅ ${entries.length} produit(s) — ${fmtDH(total)}`);
+};
+
+// Correction des ventes du jour
+function buildCorrectionList(){
+  const todayStr=fmtDate(new Date());
+  const ventesAujourd=DB.ventes.filter(v=>fmtDate(new Date(v.date))===todayStr);
+  const list=document.getElementById('correction-list');
+  if(ventesAujourd.length===0){list.innerHTML='<div style="color:var(--text3);text-align:center;padding:20px;">Aucune vente aujourd\'hui</div>';return;}
+  // Agréger par produit
+  const byProd={};
+  DB.ventes.forEach((v,idx)=>{
+    if(fmtDate(new Date(v.date))!==todayStr)return;
+    if(!byProd[v.recetteNom])byProd[v.recetteNom]={nom:v.recetteNom,prix:v.prixUnit,qty:0};
+    byProd[v.recetteNom].qty+=v.qty;
+  });
+  list.innerHTML=Object.entries(byProd).map(([nom,data])=>`
+    <div class="card" style="margin-bottom:8px;"><div class="card-body">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <div><div class="list-name">${nom}</div><div class="list-sub">${fmtDH(data.prix)} / unité</div></div>
+        <span class="badge badge-green">${fmtDH(data.qty*data.prix)}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="font-size:12px;color:var(--text2);">Quantité :</div>
+        <button class="qty-btn qty-btn-minus" onclick="correctQty('${nom}',-1)">−</button>
+        <span style="font-size:16px;font-weight:700;min-width:28px;text-align:center;" id="corr-qty-${nom.replace(/\s/g,'_')}">${data.qty}</span>
+        <button class="qty-btn qty-btn-plus" onclick="correctQty('${nom}',1)">+</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteVenteProd('${nom}')">Supprimer</button>
+      </div>
+    </div></div>`).join('');
+}
+
+window.correctQty=async function(nom,delta){
+  const todayStr=fmtDate(new Date());
+  // Trouver toutes les ventes du jour pour ce produit dans Firebase
+  const snapshot=await get(ref(db,'stockapp/ventes'));
+  if(!snapshot.exists())return;
+  const all=snapshot.val();
+  let totalQty=0;
+  const keys=Object.keys(all).filter(k=>all[k].recetteNom===nom&&fmtDate(new Date(all[k].date))===todayStr);
+  keys.forEach(k=>{totalQty+=all[k].qty;});
+  const newQty=Math.max(0,totalQty+delta);
+  if(newQty===totalQty)return;
+  // Supprimer toutes les entrées du jour pour ce produit, puis recréer avec newQty
+  for(const k of keys){await remove(ref(db,'stockapp/ventes/'+k));}
+  if(newQty>0){
+    const r=DB.recettes.find(x=>x.nom===nom);
+    await pushToFirebase('ventes',{recetteId:r?.id||0,recetteNom:nom,qty:newQty,prixUnit:r?.prix||0,date:new Date().toISOString()});
+  }
+  const el=document.getElementById('corr-qty-'+nom.replace(/\s/g,'_'));
+  if(el)el.textContent=newQty;
+  toast(newQty===0?`🗑️ ${nom} retiré`:`✅ ${nom} : ${newQty} unité(s)`);
+};
+
+window.deleteVenteProd=async function(nom){
+  if(!confirm(`Supprimer toutes les ventes de "${nom}" aujourd'hui ?`))return;
+  const todayStr=fmtDate(new Date());
+  const snapshot=await get(ref(db,'stockapp/ventes'));
+  if(!snapshot.exists())return;
+  const all=snapshot.val();
+  const keys=Object.keys(all).filter(k=>all[k].recetteNom===nom&&fmtDate(new Date(all[k].date))===todayStr);
+  for(const k of keys){await remove(ref(db,'stockapp/ventes/'+k));}
+  toast(`🗑️ ${nom} supprimé`);buildCorrectionList();
+};
+
+function getVentesForDate(ds){return DB.ventes.filter(v=>fmtDate(new Date(v.date))===ds);}
+function getDatesWithVentes(){const s=new Set();DB.ventes.forEach(v=>s.add(fmtDate(new Date(v.date))));return s;}
+
+function renderCaisse(){
+  const c=document.getElementById('caisse-content');
+  const today=new Date();const todayStr=fmtDate(today);
+  const ventesAujourd=getVentesForDate(todayStr);
+  const totalJour=ventesAujourd.reduce((s,v)=>s+v.qty*v.prixUnit,0);
+  const totalUnitsJour=ventesAujourd.reduce((s,v)=>s+v.qty,0);
+  const totalVentes=DB.ventes.reduce((acc,v)=>{acc[v.recetteId]=(acc[v.recetteId]||0)+v.qty;return acc;},{});
+  const datesWithVentes=getDatesWithVentes();
+  const byProdToday={};ventesAujourd.forEach(v=>{byProdToday[v.recetteNom]=(byProdToday[v.recetteNom]||0)+v.qty;});
+  const firstDay=new Date(calYear,calMonth,1);const lastDay=new Date(calYear,calMonth+1,0);
+  const startWDay=(firstDay.getDay()+6)%7;const days=[];
+  for(let i=0;i<startWDay;i++){const d=new Date(calYear,calMonth,-(startWDay-1-i));days.push({d,other:true});}
+  for(let i=1;i<=lastDay.getDate();i++){days.push({d:new Date(calYear,calMonth,i),other:false});}
+  const rem=(7-days.length%7)%7;for(let i=1;i<=rem;i++){days.push({d:new Date(calYear,calMonth+1,i),other:true});}
+  const selStr=calSelectedDate||todayStr;
+  const ventesSel=getVentesForDate(selStr);const totalSel=ventesSel.reduce((s,v)=>s+v.qty*v.prixUnit,0);
+  const byProdSel={};ventesSel.forEach(v=>{byProdSel[v.recetteNom]=(byProdSel[v.recetteNom]||0)+v.qty;});
+  const histCaisse=[...DB.historique].filter(h=>h.type==='vente').reverse().slice(0,10);
+  c.innerHTML=`
+    <div class="kpi-grid">
+      <div class="kpi-card"><div class="kpi-label">CA aujourd'hui</div><div class="kpi-value">${totalJour.toFixed(2)}</div><div class="kpi-sub">DH</div></div>
+      <div class="kpi-card"><div class="kpi-label">Unités vendues</div><div class="kpi-value">${totalUnitsJour}</div></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:16px;">
+      <button class="btn btn-primary" onclick="openModal('modal-vente')" style="flex:2;">+ Saisir des ventes</button>
+      <button class="btn btn-secondary" onclick="openModal('modal-correction')" style="flex:1;font-size:12px;">✏️ Corriger</button>
+    </div>
+    <div class="section-title">Ventes d'aujourd'hui</div>
+    <div class="card"><div class="card-body">${Object.keys(byProdToday).length===0?'<div style="color:var(--text3);font-size:12px;text-align:center;padding:10px;">Aucune vente aujourd\'hui</div>':Object.entries(byProdToday).map(([nom,qty])=>{const r=DB.recettes.find(x=>x.nom===nom);return`<div class="list-item"><div><div class="list-name">${nom}</div><div class="list-sub">${r?fmtDH(qty*r.prix):''}</div></div><span style="font-weight:600;">×${qty}</span></div>`;}).join('')}</div></div>
+    <div class="section-title">Top produits (total)</div>
+    <div class="card"><div class="card-body">${DB.recettes.length===0?'<div style="color:var(--text3);font-size:12px;">Aucun produit</div>':[...DB.recettes].sort((a,b)=>(totalVentes[b.id]||0)-(totalVentes[a.id]||0)).map(r=>{const v=totalVentes[r.id]||0;const max=Math.max(...DB.recettes.map(x=>totalVentes[x.id]||0),1);return`<div class="list-item"><div><div class="list-name">${r.nom}</div><div class="list-sub">${fmtDH(v*r.prix)}</div></div><div style="text-align:right;"><span style="font-weight:600;">${v}</span><div class="progress-bar" style="width:80px;margin-top:4px;"><div class="progress-fill" style="width:${(v/max*100).toFixed(0)}%;background:var(--accent);"></div></div></div></div>`;}).join('')}</div></div>
+    <div class="section-title">Calendrier des ventes</div>
+    <div class="card"><div class="card-body" style="padding:12px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <button onclick="prevMonth()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text2);">‹</button>
+        <span style="font-weight:600;font-size:14px;">${MOIS[calMonth]} ${calYear}</span>
+        <button onclick="nextMonth()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text2);">›</button>
+      </div>
+      <div class="cal-header-row">${['L','M','M','J','V','S','D'].map(d=>`<div class="cal-wday">${d}</div>`).join('')}</div>
+      <div class="cal-grid">${days.map(({d,other})=>{const ds=fmtDate(d);const isToday=ds===todayStr;const isSel=ds===selStr;const hasData=datesWithVentes.has(ds)&&!other;return`<button class="cal-day ${other?'other-month':''} ${hasData?'has-data':''} ${isSel?'selected':''} ${isToday&&!isSel?'today':''}" onclick="selectCalDay('${ds}')">${d.getDate()}</button>`;}).join('')}</div>
+    </div></div>
+    <div class="section-title">Détail du ${new Date(selStr+'T12:00:00').toLocaleDateString('fr-FR',{day:'2-digit',month:'long'})}</div>
+    <div class="card"><div class="card-body">${ventesSel.length===0?`<div style="color:var(--text3);font-size:12px;text-align:center;padding:10px;">Aucune vente ce jour</div>`:`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-size:12px;color:var(--text3);">Total</span><span class="badge badge-green">${fmtDH(totalSel)}</span></div>`+Object.entries(byProdSel).map(([nom,qty])=>{const r=DB.recettes.find(x=>x.nom===nom);return`<div class="list-item"><div class="list-name">${nom}</div><span style="font-size:12px;color:var(--text3);">×${qty} = ${r?fmtDH(qty*r.prix):'? DH'}</span></div>`;}).join('')}</div></div>
+    <div class="section-title">Historique caisse</div>
+    ${histCaisse.length===0?'<div style="color:var(--text3);font-size:12px;text-align:center;padding:16px;">Aucune saisie</div>':histCaisse.map(h=>`<div class="card"><div class="card-body"><div style="display:flex;align-items:center;justify-content:space-between;"><div><div class="list-name">🧾 Saisie caisse</div><div class="list-sub">${new Date(h.date).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})} · ${h.entries?h.entries.length:0} produit(s)</div></div><span class="badge badge-green">${fmtDH(h.total||0)}</span></div></div></div>`).join('')}
+    <div style="height:8px;"></div>`;
+}
+window.selectCalDay=function(ds){calSelectedDate=ds;renderCaisse();};
+window.prevMonth=function(){calMonth--;if(calMonth<0){calMonth=11;calYear--;}renderCaisse();};
+window.nextMonth=function(){calMonth++;if(calMonth>11){calMonth=0;calYear++;}renderCaisse();};
+
+// ==================== FINANCE (Maître) ====================
+function calcCoutMatiere(recette){
+  if(!recette.ingredients)return 0;
+  return recette.ingredients.reduce((s,ing)=>{
+    const prix=DB.prixMatieres[ing.name.trim()]||0;
+    return s+ing.qty*prix;
+  },0);
+}
+function calcMargeBrute(recette){return recette.prix-calcCoutMatiere(recette);}
+
+function getChargesFixesTotales(){return DB.chargesFixes.reduce((s,c)=>s+c.montant,0);}
+function getChargesVariablesMois(mk){return DB.chargesVariables.filter(c=>c.mois===mk).reduce((s,c)=>s+c.montant,0);}
+
+function refreshChargeSuggestions(){
+  const noms=[...new Set([...DB.chargesFixes,...DB.chargesVariables].map(c=>c.nom).filter(Boolean))];
+  document.getElementById('charge-suggestions').innerHTML=noms.map(n=>`<option value="${n}">`).join('');
+}
+
+window.saveCharge=async function(){
+  const nom=document.getElementById('ch-nom').value.trim();
+  const montant=parseFloat(document.getElementById('ch-montant').value)||0;
+  const type=document.getElementById('ch-type').value;
+  const mois=document.getElementById('ch-mois').value||monthKey(new Date());
+  if(!nom||montant<=0){toast('❌ Nom et montant requis');return;}
+  if(type==='fixe'){await pushToFirebase('chargesFixes',{nom,montant});}
+  else{await pushToFirebase('chargesVariables',{nom,montant,mois});}
+  closeModal('modal-charge');toast('✅ Charge enregistrée');
+};
+window.deleteChargeFixe=async function(i){
+  if(!confirm('Supprimer cette charge fixe ?'))return;
+  const snapshot=await get(ref(db,'stockapp/chargesFixes'));
+  if(!snapshot.exists())return;
+  const all=snapshot.val();const keys=Object.keys(all);
+  if(keys[i])await remove(ref(db,'stockapp/chargesFixes/'+keys[i]));
+};
+window.deleteChargeVar=async function(i){
+  if(!confirm('Supprimer cette charge variable ?'))return;
+  const snapshot=await get(ref(db,'stockapp/chargesVariables'));
+  if(!snapshot.exists())return;
+  const all=snapshot.val();const keys=Object.keys(all);
+  if(keys[i])await remove(ref(db,'stockapp/chargesVariables/'+keys[i]));
+};
+
+let financeTab='matieres';
+window.setFinanceTab=function(t){financeTab=t;renderFinance();};
+
+function renderFinance(){
+  if(userRole!=='maitre')return;
+  const c=document.getElementById('finance-content');
+  const totalChargesFixes=getChargesFixesTotales();
+  const mk=monthKey(new Date());
+  const totalChargesVar=getChargesVariablesMois(mk);
+
+  c.innerHTML=`
+    <div class="pill-row">
+      <div class="pill ${financeTab==='matieres'?'active':''}" onclick="setFinanceTab('matieres')">Prix matières</div>
+      <div class="pill ${financeTab==='marges'?'active':''}" onclick="setFinanceTab('marges')">Marges</div>
+      <div class="pill ${financeTab==='charges'?'active':''}" onclick="setFinanceTab('charges')">Charges</div>
+    </div>
+
+    ${financeTab==='matieres'?`
+      <div class="alert alert-amber">💡 Définissez le coût par unité de chaque matière première pour calculer les marges.</div>
+      <div class="section-title">Prix unitaires des matières</div>
+      ${Object.keys(DB.matieres).length===0?'<div class="empty-state"><div class="empty-icon">🔢</div>Aucune matière première</div>':
+        Object.entries(DB.matieres).map(([name,m])=>`
+          <div class="card"><div class="card-body">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <div style="flex:2;"><div class="list-name">${name}</div><div class="list-sub">/ ${m.unit}</div></div>
+              <div style="display:flex;align-items:center;gap:6px;flex:1.5;">
+                <input class="input" type="number" step="0.01" placeholder="0.00" value="${DB.prixMatieres[name]||''}" 
+                  id="pm-${name.replace(/[^a-zA-Z0-9]/g,'X')}" style="text-align:right;" onchange="savePrixMatiere('${name}')">
+                <span style="font-size:11px;color:var(--text3);white-space:nowrap;">DH</span>
+              </div>
+            </div>
+          </div></div>`).join('')}
+    `:''}
+
+    ${financeTab==='marges'?`
+      <div class="section-title">Marges brutes par produit</div>
+      ${DB.recettes.length===0?'<div class="empty-state"><div class="empty-icon">📊</div>Aucune recette</div>':
+        DB.recettes.map(r=>{
+          const cout=calcCoutMatiere(r);const marge=calcMargeBrute(r);const pct=r.prix>0?(marge/r.prix*100):0;
+          const hasPrix=r.ingredients&&r.ingredients.every(ing=>(DB.prixMatieres[ing.name.trim()]||0)>0);
+          return`<div class="card"><div class="card-body">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+              <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:22px;">${r.emoji||'🍽️'}</span><div><div class="list-name">${r.nom}</div><div class="list-sub">${r.cat||''}</div></div></div>
+              ${!hasPrix?`<span class="badge badge-amber">Prix manquants</span>`:`<span class="badge ${pct>=50?'badge-green':pct>=30?'badge-amber':'badge-red'}">${pct.toFixed(0)}%</span>`}
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;font-size:11px;">
+              <div style="background:var(--surface2);border-radius:8px;padding:8px;"><div style="color:var(--text3);">Prix vente</div><div style="font-weight:600;font-size:13px;">${fmtDH(r.prix)}</div></div>
+              <div style="background:var(--surface2);border-radius:8px;padding:8px;"><div style="color:var(--text3);">Coût mat.</div><div style="font-weight:600;font-size:13px;color:var(--danger);">${fmtDH(cout)}</div></div>
+              <div style="background:${pct>=50?'var(--accent-light)':pct>=30?'var(--amber-light)':'var(--danger-light)'};border-radius:8px;padding:8px;"><div style="color:var(--text3);">Marge brute</div><div style="font-weight:600;font-size:13px;color:${pct>=50?'var(--accent)':pct>=30?'var(--amber)':'var(--danger)'};">${fmtDH(marge)}</div></div>
+            </div>
+          </div></div>`;
+        }).join('')}
+    `:''}
+
+    ${financeTab==='charges'?`
+      <div class="kpi-grid">
+        <div class="kpi-card"><div class="kpi-label">Charges fixes / mois</div><div class="kpi-value">${totalChargesFixes.toFixed(0)}</div><div class="kpi-sub">DH</div></div>
+        <div class="kpi-card"><div class="kpi-label">Charges var. (ce mois)</div><div class="kpi-value">${totalChargesVar.toFixed(0)}</div><div class="kpi-sub">DH</div></div>
+      </div>
+      <button class="btn btn-primary" style="margin-bottom:12px;" onclick="openModal('modal-charge')">+ Ajouter une charge</button>
+      <div class="section-title">Charges fixes (récurrentes)</div>
+      ${DB.chargesFixes.length===0?'<div style="color:var(--text3);font-size:12px;padding:8px;">Aucune charge fixe</div>':
+        DB.chargesFixes.map((ch,i)=>`<div class="card"><div class="card-body"><div style="display:flex;align-items:center;justify-content:space-between;"><div><div class="list-name">${ch.nom}</div><div class="list-sub">Mensuelle récurrente</div></div><div style="display:flex;align-items:center;gap:8px;"><span class="badge badge-purple">${fmtDH(ch.montant)}</span><button onclick="deleteChargeFixe(${i})" style="background:none;border:none;font-size:16px;cursor:pointer;color:var(--text3);">×</button></div></div></div></div>`).join('')}
+      <div class="section-title">Charges variables (ponctuelles)</div>
+      ${DB.chargesVariables.length===0?'<div style="color:var(--text3);font-size:12px;padding:8px;">Aucune charge variable</div>':
+        DB.chargesVariables.map((ch,i)=>`<div class="card"><div class="card-body"><div style="display:flex;align-items:center;justify-content:space-between;"><div><div class="list-name">${ch.nom}</div><div class="list-sub">${ch.mois||'—'}</div></div><div style="display:flex;align-items:center;gap:8px;"><span class="badge badge-amber">${fmtDH(ch.montant)}</span><button onclick="deleteChargeVar(${i})" style="background:none;border:none;font-size:16px;cursor:pointer;color:var(--text3);">×</button></div></div></div></div>`).join('')}
+    `:''}
+    <div style="height:8px;"></div>`;
+}
+
+window.savePrixMatiere=async function(name){
+  const sid=name.replace(/[^a-zA-Z0-9]/g,'X');
+  const val=parseFloat(document.getElementById('pm-'+sid)?.value)||0;
+  const updates={};updates['prixMatieres/'+name]=val;
+  await update(ref(db,'stockapp'),updates);
+  toast('✅ Prix mis à jour');
+};
+
+// ==================== KPI ====================
+function getCAParMois(){const map={};DB.ventes.forEach(v=>{const mk=monthKey(new Date(v.date));map[mk]=(map[mk]||0)+v.qty*v.prixUnit;});return map;}
+function getUnitsParMois(){const map={};DB.ventes.forEach(v=>{const mk=monthKey(new Date(v.date));map[mk]=(map[mk]||0)+v.qty;});return map;}
+let kpiView='total',kpiCalYear=new Date().getFullYear(),kpiCalMonth=new Date().getMonth(),chartPeriod=6,caChart=null;
+
+function calcMargeNeteMois(mk){
+  const caMonth=getCAParMois()[mk]||0;
+  let coutMat=0;
+  DB.ventes.filter(v=>monthKey(new Date(v.date))===mk).forEach(v=>{
+    const r=DB.recettes.find(x=>x.id===v.recetteId);if(!r)return;
+    coutMat+=calcCoutMatiere(r)*v.qty;
+  });
+  const chargesFixes=getChargesFixesTotales();
+  const chargesVar=getChargesVariablesMois(mk);
+  return{ca:caMonth,coutMat,chargesFixes,chargesVar,margeNette:caMonth-coutMat-chargesFixes-chargesVar};
+}
+
+function renderKPI(){
+  const c=document.getElementById('kpi-content');const isMaitre=userRole==='maitre';
+  const totalCA=DB.ventes.reduce((s,v)=>s+v.qty*v.prixUnit,0);
+  const totalUnits=DB.ventes.reduce((s,v)=>s+v.qty,0);
+  const jours=new Set(DB.ventes.map(v=>fmtDate(new Date(v.date)))).size;
+  const nbInv=DB.inventaires.length;const mps=Object.keys(DB.matieres);
+  const hasSnapshot=DB.stockPrev&&Object.keys(DB.stockPrev).length>0&&nbInv>1;
+  const lastInv=DB.inventaires.length>0?DB.inventaires[DB.inventaires.length-1]:null;
+  const prevDyn=calcPrevisionnel();
+  const caParMois=getCAParMois();const moisAvecData=Object.keys(caParMois).sort();const hasCurve=moisAvecData.length>=3;
+  document.getElementById('kpi-mode-label').textContent=kpiView==='total'?'Vue globale':'Vue mensuelle — '+MOIS[kpiCalMonth]+' '+kpiCalYear;
+  const mk=kpiCalYear+'-'+(kpiCalMonth+1).toString().padStart(2,'0');
+  const caParMoisMap=getCAParMois();const unitsParMois=getUnitsParMois();
+  const caMonth=caParMoisMap[mk]||0;const unitsMonth=unitsParMois[mk]||0;
+  const joursMonth=new Set(DB.ventes.filter(v=>monthKey(new Date(v.date))===mk).map(v=>fmtDate(new Date(v.date)))).size;
+  const byProdMonth={};DB.ventes.filter(v=>monthKey(new Date(v.date))===mk).forEach(v=>{byProdMonth[v.recetteNom]=(byProdMonth[v.recetteNom]||0)+v.qty;});
+  const ecarts=hasSnapshot?mps.map(name=>({name,prevVal:DB.stockPrev[name]||0,reelVal:DB.stock[name]||0,ecart:(DB.stock[name]||0)-(DB.stockPrev[name]||0),unit:DB.matieres[name]?.unit})):[];
+
+  // Marge brute totale
+  let totalMargeBrute=0;let totalCoutMat=0;
+  DB.ventes.forEach(v=>{const r=DB.recettes.find(x=>x.id===v.recetteId);if(!r)return;const cout=calcCoutMatiere(r);totalCoutMat+=cout*v.qty;totalMargeBrute+=(r.prix-cout)*v.qty;});
+  const totalChargesFixes=getChargesFixesTotales();
+  const totalChargesVar=DB.chargesVariables.reduce((s,c)=>s+c.montant,0);
+  const margeNette=totalMargeBrute-totalChargesFixes-totalChargesVar;
+  const {margeNette:margeNetteMois,coutMat:coutMatMois,chargesFixes:cfMois,chargesVar:cvMois}=calcMargeNeteMois(mk);
+  const margeBruteMois=caMonth-coutMatMois;
+
+  c.innerHTML=`
+    <div class="pill-row">
+      <div class="pill ${kpiView==='total'?'active':''}" onclick="setKpiView('total')">Total</div>
+      <div class="pill ${kpiView==='monthly'?'active':''}" onclick="setKpiView('monthly')">Par mois</div>
+    </div>
+    ${kpiView==='total'?`
+      <div class="kpi-grid">
+        <div class="kpi-card"><div class="kpi-label">CA total</div><div class="kpi-value">${totalCA.toFixed(0)}</div><div class="kpi-sub">DH</div></div>
+        <div class="kpi-card"><div class="kpi-label">Unités vendues</div><div class="kpi-value">${totalUnits}</div></div>
+        <div class="kpi-card"><div class="kpi-label">Jours actifs</div><div class="kpi-value">${jours}</div></div>
+        <div class="kpi-card"><div class="kpi-label">Moy. / jour actif</div><div class="kpi-value">${jours>0?(totalCA/jours).toFixed(0):'—'}</div><div class="kpi-sub">DH</div></div>
+      </div>
+      ${isMaitre?`
+      <div class="section-title">Marges (total)</div>
+      <div class="kpi-grid">
+        <div class="kpi-card"><div class="kpi-label">Marge brute</div><div class="kpi-value" style="color:var(--accent);">${totalMargeBrute.toFixed(0)}</div><div class="kpi-sub">DH — ${totalCA>0?(totalMargeBrute/totalCA*100).toFixed(0):'0'}%</div></div>
+        <div class="kpi-card"><div class="kpi-label">Marge nette</div><div class="kpi-value" style="color:${margeNette>=0?'var(--accent)':'var(--danger)'};">${margeNette.toFixed(0)}</div><div class="kpi-sub">DH après charges</div></div>
+        <div class="kpi-card"><div class="kpi-label">Coût matières</div><div class="kpi-value" style="color:var(--danger);">${totalCoutMat.toFixed(0)}</div><div class="kpi-sub">DH</div></div>
+        <div class="kpi-card"><div class="kpi-label">Charges totales</div><div class="kpi-value" style="color:var(--amber);">${(totalChargesFixes+totalChargesVar).toFixed(0)}</div><div class="kpi-sub">DH</div></div>
+      </div>`:''}
+      ${hasCurve?`<div class="section-title">Évolution CA mensuel</div><div class="card"><div class="card-body" style="padding:12px;"><div class="pill-row" style="margin-bottom:8px;"><div class="pill ${chartPeriod===3?'active':''}" onclick="setChartPeriod(3)">3 mois</div><div class="pill ${chartPeriod===6?'active':''}" onclick="setChartPeriod(6)">6 mois</div><div class="pill ${chartPeriod===12?'active':''}" onclick="setChartPeriod(12)">12 mois</div></div><div style="height:180px;"><canvas id="ca-chart"></canvas></div></div></div>`:
+      `<div class="card"><div class="card-body" style="text-align:center;padding:20px;"><div style="font-size:24px;margin-bottom:8px;">📈</div><div style="font-size:13px;font-weight:500;margin-bottom:4px;">Courbe disponible dès 3 mois</div><div style="font-size:12px;color:var(--text3);">${moisAvecData.length}/3 mois avec données</div><div class="progress-bar" style="margin-top:12px;"><div class="progress-fill" style="width:${Math.min(100,moisAvecData.length/3*100).toFixed(0)}%;background:var(--accent);"></div></div></div></div>`}
+      <div class="section-title">Écart prévisionnel vs réel</div>
+      ${!hasSnapshot?`<div class="alert alert-amber">⚠️ Disponible après le 2ème inventaire.</div>`:
+        `${lastInv?`<div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Inventaire du ${new Date(lastInv.date).toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'})}</div>`:''}
+        <div class="card"><div class="card-body"><table class="ecart-table"><thead><tr><th>Matière</th><th style="text-align:right;">Prév.</th><th style="text-align:right;">Réel</th><th style="text-align:right;">Écart</th></tr></thead><tbody>${ecarts.map(e=>`<tr><td style="font-weight:500;">${e.name}<div style="font-size:10px;color:var(--text3);">${e.unit}</div></td><td style="text-align:right;color:var(--amber);">${e.prevVal.toFixed(2)}</td><td style="text-align:right;color:var(--blue);">${e.reelVal.toFixed(2)}</td><td style="text-align:right;font-weight:600;color:${e.ecart>0.1?'var(--accent)':e.ecart<-0.1?'var(--danger)':'var(--text3)'};">${e.ecart>=0?'+':''}${e.ecart.toFixed(2)}</td></tr>`).join('')}</tbody></table></div></div>`}
+      <div class="section-title">Stock prévisionnel actuel</div>
+      ${!DB.stockInitDate?`<div class="alert alert-amber">⚠️ Faites un inventaire d'abord.</div>`:
+        `<div class="card"><div class="card-body"><table class="ecart-table"><thead><tr><th>Matière</th><th style="text-align:right;">Réel</th><th style="text-align:right;">Prév.</th><th style="text-align:right;">Delta</th></tr></thead><tbody>${mps.map(name=>{const r=DB.stock[name]||0;const p=prevDyn[name]||0;const d=p-r;return`<tr><td style="font-weight:500;">${name}</td><td style="text-align:right;">${r.toFixed(2)}</td><td style="text-align:right;color:var(--accent);">${p.toFixed(2)}</td><td style="text-align:right;font-weight:600;color:${d<-0.1?'var(--danger)':d>0.1?'var(--accent)':'var(--text3)'};">${d>=0?'+':''}${d.toFixed(2)}</td></tr>`;}).join('')}</tbody></table></div></div>`}
+    `:`
+      <div class="card" style="overflow:hidden;margin-bottom:12px;"><div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;"><button onclick="kpiPrevMonth()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text2);">‹</button><span style="font-weight:600;font-size:15px;">${MOIS[kpiCalMonth]} ${kpiCalYear}</span><button onclick="kpiNextMonth()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text2);">›</button></div></div>
+      <div class="kpi-grid">
+        <div class="kpi-card"><div class="kpi-label">CA du mois</div><div class="kpi-value">${caMonth.toFixed(0)}</div><div class="kpi-sub">DH</div></div>
+        <div class="kpi-card"><div class="kpi-label">Unités vendues</div><div class="kpi-value">${unitsMonth}</div></div>
+        <div class="kpi-card"><div class="kpi-label">Jours actifs</div><div class="kpi-value">${joursMonth}</div></div>
+        <div class="kpi-card"><div class="kpi-label">Moy. / jour</div><div class="kpi-value">${joursMonth>0?(caMonth/joursMonth).toFixed(0):'—'}</div><div class="kpi-sub">DH</div></div>
+      </div>
+      ${isMaitre?`
+      <div class="section-title">Marges — ${MOIS[kpiCalMonth]}</div>
+      <div class="kpi-grid">
+        <div class="kpi-card"><div class="kpi-label">Marge brute</div><div class="kpi-value" style="color:var(--accent);">${margeBruteMois.toFixed(0)}</div><div class="kpi-sub">DH — ${caMonth>0?(margeBruteMois/caMonth*100).toFixed(0):'0'}%</div></div>
+        <div class="kpi-card"><div class="kpi-label">Marge nette</div><div class="kpi-value" style="color:${margeNetteMois>=0?'var(--accent)':'var(--danger)'};">${margeNetteMois.toFixed(0)}</div><div class="kpi-sub">DH après charges</div></div>
+        <div class="kpi-card"><div class="kpi-label">Coût matières</div><div class="kpi-value" style="color:var(--danger);">${coutMatMois.toFixed(0)}</div><div class="kpi-sub">DH</div></div>
+        <div class="kpi-card"><div class="kpi-label">Charges</div><div class="kpi-value" style="color:var(--amber);">${(cfMois+cvMois).toFixed(0)}</div><div class="kpi-sub">DH (fix+var)</div></div>
+      </div>`:''}
+      <div class="section-title">Top produits — ${MOIS[kpiCalMonth]}</div>
+      <div class="card"><div class="card-body">${Object.keys(byProdMonth).length===0?'<div style="color:var(--text3);font-size:12px;text-align:center;padding:10px;">Aucune vente ce mois</div>':Object.entries(byProdMonth).sort((a,b)=>b[1]-a[1]).map(([nom,qty])=>{const r=DB.recettes.find(x=>x.nom===nom);const max=Math.max(...Object.values(byProdMonth));return`<div class="list-item"><div><div class="list-name">${nom}</div><div class="list-sub">${r?fmtDH(qty*r.prix):''}</div></div><div style="text-align:right;"><span style="font-weight:600;">${qty}</span><div class="progress-bar" style="width:80px;margin-top:4px;"><div class="progress-fill" style="width:${(qty/max*100).toFixed(0)}%;background:var(--accent);"></div></div></div></div>`;}).join('')}</div></div>
+      ${hasCurve?`<div class="section-title">Évolution CA mensuel</div><div class="card"><div class="card-body" style="padding:12px;"><div class="pill-row" style="margin-bottom:8px;"><div class="pill ${chartPeriod===3?'active':''}" onclick="setChartPeriod(3)">3 mois</div><div class="pill ${chartPeriod===6?'active':''}" onclick="setChartPeriod(6)">6 mois</div><div class="pill ${chartPeriod===12?'active':''}" onclick="setChartPeriod(12)">12 mois</div></div><div style="height:180px;"><canvas id="ca-chart"></canvas></div></div></div>`:''}
+    `}
+    <div style="height:8px;"></div>`;
+  if(hasCurve)requestAnimationFrame(()=>drawCurve(caParMois));
+}
+
+function drawCurve(caParMois){
+  const canvas=document.getElementById('ca-chart');if(!canvas)return;
+  if(caChart){caChart.destroy();caChart=null;}
+  const now=new Date();const labels=[];const mkList=[];
+  for(let i=chartPeriod-1;i>=0;i--){const d=new Date(now.getFullYear(),now.getMonth()-i,1);const mk=monthKey(d);mkList.push(mk);labels.push(MOIS_SHORT[d.getMonth()]+' '+String(d.getFullYear()).slice(2));}
+  const data=mkList.map(mk=>caParMois[mk]||0);
+  caChart=new Chart(canvas,{type:'line',data:{labels,datasets:[{data,borderColor:'#1D9E75',backgroundColor:'rgba(29,158,117,0.08)',borderWidth:2,pointBackgroundColor:'#1D9E75',pointRadius:4,pointHoverRadius:6,fill:true,tension:0.35}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.parsed.y.toFixed(0)} DH`}}},scales:{x:{grid:{display:false},ticks:{font:{size:10},color:'#888780'}},y:{grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{size:10},color:'#888780',callback:v=>v.toFixed(0)+' DH'}}}}});
+}
+window.setKpiView=function(v){kpiView=v;renderKPI();};
+window.setChartPeriod=function(p){chartPeriod=p;renderKPI();};
+window.kpiPrevMonth=function(){kpiCalMonth--;if(kpiCalMonth<0){kpiCalMonth=11;kpiCalYear--;}renderKPI();};
+window.kpiNextMonth=function(){kpiCalMonth++;if(kpiCalMonth>11){kpiCalMonth=0;kpiCalYear++;}renderKPI();};
+
+window.confirmReset=async function(){
+  if(userRole!=='maitre'){toast('⛔ Réservé au compte Maître');return;}
+  if(!confirm('Réinitialiser le stock, les ventes et les inventaires ?\nL\'historique sera conservé.'))return;
+  await pushToFirebase('historique',{type:'reset',date:new Date().toISOString()});
+  await updateFirebase({stock:null,stockPrev:null,stockPrevDate:null,stockInitDate:null,inventaires:null,ventes:null});
+  toast('🔄 Stock réinitialisé');
+};
+
+renderTabs();
+</script>
+</body>
+</html>
