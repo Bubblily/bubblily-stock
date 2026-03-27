@@ -3,11 +3,10 @@ const CACHE_NAME = 'bubblily-v1';
 
 // Fichiers à mettre en cache pour le mode hors-ligne
 const ASSETS_TO_CACHE = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/icon-192.png',
-  '/icon-512.png'
+  './index.html',
+  './manifest.json',
+  './icon-192.png',
+  './icon-512.png'
 ];
 
 // Installation : mise en cache des ressources statiques
