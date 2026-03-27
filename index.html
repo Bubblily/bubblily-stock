@@ -154,6 +154,11 @@ body{font-family:-apple-system,'SF Pro Text','Helvetica Neue',sans-serif;backgro
     <input class="input" id="login-pwd" type="password" placeholder="••••••••" style="margin-bottom:16px;">
     <button class="btn btn-primary" onclick="doLogin()" id="login-btn">Se connecter</button>
   </div>
+  <div id="install-banner" style="display:none;margin-top:20px;width:100%;text-align:center;">
+    <button onclick="triggerInstall()" style="background:none;border:none;color:var(--accent);font-size:13px;cursor:pointer;padding:8px 0;display:flex;align-items:center;justify-content:center;gap:6px;width:100%;">
+      <span style="font-size:16px;">📲</span> Installer l'application sur ce téléphone
+    </button>
+  </div>
 </div>
 
 <div id="app-screen" style="display:none;">
@@ -2868,6 +2873,9 @@ let _installPrompt = null;
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   _installPrompt = e;
+  // Affiche le bouton en bas de la page de connexion
+  const banner = document.getElementById('install-banner');
+  if (banner) banner.style.display = 'block';
   // Affiche l'indice visuel sur la bulle
   const hint = document.getElementById('install-hint');
   if (hint) hint.style.display = 'block';
@@ -2880,6 +2888,8 @@ window.addEventListener('appinstalled', () => {
   _installPrompt = null;
   const hint = document.getElementById('install-hint');
   if (hint) hint.style.display = 'none';
+  const banner = document.getElementById('install-banner');
+  if (banner) banner.style.display = 'none';
   toast('✅ Application installée !');
 });
 
