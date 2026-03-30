@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Bubblily — Gestion Stock</title>
 <!-- iOS plein écran -->
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -266,6 +266,114 @@ body{font-family:-apple-system,'SF Pro Text','Helvetica Neue',sans-serif;backgro
 }
 .pos-addon-item.selected .pos-addon-check {
   opacity: 1;
+}
+
+/* ═══════════════════════════════════════════════════
+   TABLETTE — PORTRAIT  (≥ 768 px, portrait)
+   Pleine largeur, 4 colonnes, paddings généreux
+═══════════════════════════════════════════════════ */
+@media (min-width: 768px) and (orientation: portrait) {
+  body          { max-width: 100%; font-size: 15px; }
+  .modal        { max-width: 860px; margin-left: auto; margin-right: auto; }
+  .content      { padding: 16px 28px; }
+  .card-body    { padding: 16px 20px; }
+  .produit-grid { grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .pos-cat-grid { grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .produit-card { min-height: 170px; padding: 14px; }
+  .produit-img  { width: 72px; height: 72px; }
+  .produit-nom  { font-size: 15px; }
+  .btn          { font-size: 15px; padding: 12px 18px; }
+  .input        { font-size: 15px; padding: 10px 12px; }
+  .header-title { font-size: 19px; }
+  .pos-cat-card { padding: 20px 14px 16px; }
+  .pos-cat-name { font-size: 15px; }
+  /* caisse plein écran sur tablette portrait */
+  #modal-vente .modal     { max-width: 100%; }
+  #modal-vente .pos-modal { padding: env(safe-area-inset-top, 12px) 24px 16px; }
+}
+
+/* ═══════════════════════════════════════════════════
+   TABLETTE — PAYSAGE  (≥ 768 px, landscape, h ≥ 500 px)
+   Split-view : produits à gauche, panier à droite
+═══════════════════════════════════════════════════ */
+@media (min-width: 768px) and (orientation: landscape) and (min-height: 500px) {
+  body          { max-width: 100%; font-size: 15px; }
+  .modal        { max-width: 100%; }
+  .content      { padding: 14px 28px; }
+  .card-body    { padding: 14px 18px; }
+  .produit-grid { grid-template-columns: repeat(5, 1fr); gap: 12px; }
+  .pos-cat-grid { grid-template-columns: repeat(5, 1fr); gap: 12px; }
+  .produit-card { min-height: 150px; }
+  .btn          { font-size: 15px; padding: 11px 16px; }
+
+  /* ── Caisse split-view ─────────────────────────────
+     Colonne gauche (1fr) : breadcrumb + contenu produits
+     Colonne droite (300px) : barre panier toujours visible
+  ──────────────────────────────────────────────────── */
+  #modal-vente .modal {
+    max-width: 100%;
+  }
+  #modal-vente .pos-modal {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    /* rangées : handle | header | date | breadcrumb | contenu (1fr) */
+    grid-template-rows: auto auto auto auto 1fr;
+    column-gap: 20px;
+    overflow: hidden;
+    padding: env(safe-area-inset-top, 10px) 20px 12px env(safe-area-inset-left, 20px);
+  }
+
+  /* Tous les enfants → colonne 1 par défaut */
+  #modal-vente .pos-modal > * { grid-column: 1; }
+
+  /* Contenu scrollable */
+  #modal-vente #pos-content {
+    grid-column: 1;
+    overflow-y: auto;
+    min-height: 0;
+  }
+
+  /* Breadcrumb ne doit pas scroller */
+  #modal-vente #pos-breadcrumb { grid-column: 1; flex-shrink: 0; }
+
+  /* Barre panier → colonne 2, toutes les rangées */
+  #modal-vente #pos-cart-bar {
+    grid-column: 2 !important;
+    grid-row: 1 / -1;
+    border-top: none;
+    border-left: 0.5px solid var(--border);
+    padding: 0 0 0 20px;
+    margin-top: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  /* Titre "Panier" dans la colonne droite */
+  #modal-vente #pos-cart-bar::before {
+    content: "🛒 Panier";
+    display: block;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    padding-top: 4px;
+    flex-shrink: 0;
+    margin-bottom: auto;
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   GRAND ÉCRAN TABLETTE  (≥ 1024 px) — ajustements
+═══════════════════════════════════════════════════ */
+@media (min-width: 1024px) {
+  /* Colonne panier un peu plus large */
+  #modal-vente .pos-modal { grid-template-columns: 1fr 340px; }
+  .produit-grid { grid-template-columns: repeat(5, 1fr); }
+  .pos-cat-grid { grid-template-columns: repeat(5, 1fr); }
 }
 </style>
 </head>
