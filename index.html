@@ -129,6 +129,51 @@ body{font-family:-apple-system,'SF Pro Text','Helvetica Neue',sans-serif;backgro
 .qty-btn-minus{background:var(--surface2);color:var(--text);}
 .qty-btn-plus{background:var(--accent);color:#fff;}
 .qty-val{font-size:18px;font-weight:700;min-width:28px;text-align:center;}
+/* ===== POS CAISSE ===== */
+.pos-modal{display:flex;flex-direction:column;max-height:95vh;padding:14px 16px;}
+#pos-content{overflow-y:auto;flex:1;min-height:0;padding-bottom:4px;}
+.pos-cat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding-bottom:8px;}
+.pos-cat-card{border:2px solid;border-radius:var(--radius);padding:18px 12px 14px;cursor:pointer;transition:transform .1s,opacity .1s;text-align:center;}
+.pos-cat-card:active{transform:scale(0.96);opacity:.85;}
+.pos-cat-emoji{font-size:28px;margin-bottom:6px;}
+.pos-cat-name{font-size:14px;font-weight:700;line-height:1.3;}
+.pos-cat-count{font-size:11px;margin-top:3px;opacity:.75;}
+.pos-back-btn{background:var(--surface2);border:none;border-radius:6px;color:var(--text2);font-size:13px;cursor:pointer;padding:5px 10px;font-weight:500;}
+.pos-breadcrumb{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-shrink:0;}
+.pos-step-label{font-size:14px;font-weight:600;color:var(--text);}
+.pos-cart-bar{flex-shrink:0;padding-top:10px;border-top:0.5px solid var(--border);margin-top:8px;}
+.pos-cart-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:0.5px solid var(--border);}
+.pos-cart-thumb{width:44px;height:44px;object-fit:cover;border-radius:8px;flex-shrink:0;}
+.pos-cart-thumb-placeholder{width:44px;height:44px;background:var(--surface2);border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:20px;}
+/* ===== RESPONSIVE ===== */
+@media(min-width:600px){
+  body{max-width:640px;font-size:15px;}
+  .modal{max-width:640px;}
+  .produit-grid{grid-template-columns:repeat(3,1fr);gap:12px;}
+  .pos-cat-grid{grid-template-columns:repeat(3,1fr);}
+  .produit-card{min-height:170px;padding:14px;}
+  .produit-img{width:72px;height:72px;}
+  .produit-nom{font-size:16px;}
+  .header-title{font-size:19px;}
+  .btn{font-size:15px;padding:12px 18px;}
+  .input{font-size:15px;padding:10px 12px;}
+  .card-body{padding:16px 18px;}
+  .content{padding:14px 20px;}
+  .pos-cat-card{padding:20px 14px 16px;}
+  .pos-cat-emoji{font-size:32px;}
+  .pos-cat-name{font-size:15px;}
+}
+@media(min-width:1024px){
+  body{max-width:980px;font-size:16px;}
+  .modal{max-width:980px;}
+  .produit-grid{grid-template-columns:repeat(4,1fr);gap:14px;}
+  .pos-cat-grid{grid-template-columns:repeat(4,1fr);}
+  .produit-card{min-height:190px;padding:16px;}
+  .produit-img{width:80px;height:80px;}
+  .header-title{font-size:20px;}
+  .header{padding:14px 24px 12px;}
+  .content{padding:16px 24px;}
+}
 </style>
 </head>
 <body>
@@ -176,7 +221,10 @@ body{font-family:-apple-system,'SF Pro Text','Helvetica Neue',sans-serif;backgro
     </div>
   </div>
   <div class="content" id="recettes-content"></div>
-  <div style="padding:0 16px 12px;" id="btn-add-recette-wrap"><button class="btn btn-primary" onclick="openModal('modal-recette')">+ Nouvelle recette</button></div>
+  <div style="padding:0 16px 12px;display:flex;flex-direction:column;gap:8px;" id="btn-add-recette-wrap">
+    <button class="btn btn-primary" onclick="openModal('modal-recette')">+ Nouvelle recette</button>
+    <button class="btn btn-secondary role-maitre" onclick="updateAllRecetteImages()" style="font-size:12px;padding:8px;">🔍 Mettre à jour toutes les images via le web</button>
+  </div>
   <div class="tabs" id="tabs-recettes"></div>
 </div>
 
@@ -249,11 +297,26 @@ body{font-family:-apple-system,'SF Pro Text','Helvetica Neue',sans-serif;backgro
     <div class="label">Catégorie</div>
     <input class="input" id="r-cat" placeholder="Ex: Boulangerie, Boissons..." style="margin-bottom:10px;" list="cat-suggestions">
     <datalist id="cat-suggestions"></datalist>
+    <div style="font-size:11px;color:var(--blue);background:var(--blue-light);padding:6px 10px;border-radius:6px;margin-bottom:10px;">
+      💡 Si la catégorie contient <strong>Topping</strong> ou <strong>Supplément</strong>, la recette sera automatiquement classée dans Toppings/Suppléments.
+    </div>
+    <div id="r-topping-eligible-wrap" style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+      <input type="checkbox" id="r-topping-eligible" style="width:16px;height:16px;cursor:pointer;">
+      <label for="r-topping-eligible" style="font-size:13px;cursor:pointer;">Article éligible aux toppings/suppléments</label>
+    </div>
     <div class="label">Nom du produit</div>
     <input class="input" id="r-nom" placeholder="Ex: Croissant, Pizza..." style="margin-bottom:10px;">
     <div class="label">Image du produit (optionnel)</div>
     <div style="margin-bottom:12px;">
-      <input class="input" id="r-image-url" placeholder="Coller un lien URL (https://...)" style="margin-bottom:6px;" oninput="previewRecetteImage()">
+      <div style="display:flex;gap:6px;margin-bottom:6px;">
+        <input class="input" id="r-image-url" placeholder="URL de l'image (https://...)" style="flex:1;" oninput="previewRecetteImage()">
+        <button onclick="searchImagePexels()" style="background:var(--blue-light);color:var(--blue);border:none;border-radius:var(--radius-sm);padding:0 10px;font-size:18px;cursor:pointer;flex-shrink:0;" title="Rechercher une image en ligne">🔍</button>
+      </div>
+      <div id="pexels-results" style="display:none;margin-bottom:8px;">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:6px;">Sélectionne une image :</div>
+        <div id="pexels-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;"></div>
+        <div style="font-size:9px;color:var(--text3);margin-top:4px;text-align:right;">Photos par <a href="https://www.pexels.com" target="_blank" style="color:var(--text3);">Pexels</a></div>
+      </div>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
         <div style="flex:1;height:0.5px;background:var(--border);"></div>
         <span style="font-size:11px;color:var(--text3);">ou</span>
@@ -298,19 +361,16 @@ body{font-family:-apple-system,'SF Pro Text','Helvetica Neue',sans-serif;backgro
 </div>
 
 <div class="modal-overlay" id="modal-vente">
-  <div class="modal">
+  <div class="modal pos-modal">
     <div class="modal-handle"></div>
-    <div class="card-title" style="margin-bottom:4px;">Saisie des ventes</div>
-    <div style="font-size:12px;color:var(--text3);margin-bottom:12px;" id="vente-date-label"></div>
-    <div id="vente-list"></div>
-    <div style="border-top:0.5px solid var(--border);margin-top:12px;padding-top:12px;display:flex;align-items:center;justify-content:space-between;">
-      <div style="font-size:13px;color:var(--text2);">Total sélectionné</div>
-      <div style="font-size:18px;font-weight:700;color:var(--accent);" id="vente-total-preview">0.00 DH</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-shrink:0;margin-bottom:4px;">
+      <div class="card-title">🛒 Saisie des ventes</div>
+      <button style="background:none;border:none;font-size:20px;color:var(--text3);cursor:pointer;padding:0 4px;" onclick="closeModal('modal-vente')">✕</button>
     </div>
-    <div style="display:flex;gap:8px;margin-top:12px;">
-      <button class="btn btn-secondary" onclick="closeModal('modal-vente')">Annuler</button>
-      <button class="btn btn-primary" onclick="saveVente()">Valider les ventes</button>
-    </div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:10px;flex-shrink:0;" id="vente-date-label"></div>
+    <div class="pos-breadcrumb" id="pos-breadcrumb"></div>
+    <div id="pos-content"></div>
+    <div class="pos-cart-bar" id="pos-cart-bar"></div>
   </div>
 </div>
 
@@ -470,6 +530,18 @@ body{font-family:-apple-system,'SF Pro Text','Helvetica Neue',sans-serif;backgro
 </div><!-- /app-screen -->
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+// Capture any uncaught error and display it on the loading screen
+window.onerror=function(msg,src,line,col,err){
+  const ls=document.getElementById('loading-screen');
+  if(ls){ls.innerHTML='<div style="padding:20px;color:#e24b4a;font-size:13px;max-width:360px;text-align:left;"><strong>❌ Erreur au démarrage</strong><br><br>'+msg+'<br><small style="color:#888">'+src+' :'+line+'</small><br><br><button onclick="location.reload()" style="background:#1d9e75;color:#fff;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;">🔄 Recharger</button></div>';}
+  return false;
+};
+window.addEventListener('unhandledrejection',function(e){
+  const ls=document.getElementById('loading-screen');
+  if(ls&&ls.style.display!=='none'){ls.innerHTML+='<div style="padding:10px 20px;color:#e24b4a;font-size:12px;">⚠️ Promesse rejetée: '+(e.reason||'')+'</div>';}
+});
+</script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -646,6 +718,7 @@ window.openModal=function(id){
     document.getElementById('r-image-preview').style.display='none';
     window._imageBase64=null;
     document.getElementById('r-ingredients-list').innerHTML='';
+    document.getElementById('r-topping-eligible').checked=false;
     addIngredientLine();refreshCatSuggestions();
   }
   if(id==='modal-charge'){
@@ -661,7 +734,7 @@ window.openModal=function(id){
   document.getElementById(id).classList.add('open');
 };
 window.closeModal=function(id){document.getElementById(id).classList.remove('open');editingRecetteIdx=null;};
-document.querySelectorAll('.modal-overlay').forEach(o=>{o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');});});
+document.querySelectorAll('.modal-overlay').forEach(o=>{o.addEventListener('click',e=>{if(e.target===o){o.classList.remove('open');if(o.id==='modal-recette')editingRecetteIdx=null;}});});
 window.onChargeTypeChange=function(){
   const t=document.getElementById('ch-type').value;
   document.getElementById('ch-mois-wrap').style.display=t==='variable'?'block':'none';
@@ -671,7 +744,13 @@ window.onChargeTypeChange=function(){
 document.getElementById('ch-type').addEventListener('change', window.onChargeTypeChange);
 
 // ==================== RECETTES ====================
-let editingRecetteIdx=null, activeCatFilter='all';
+let editingRecetteIdx=null, activeCatFilter='all', activeRecetteView='produits';
+// Détermine automatiquement si une recette est un Topping/Supplément selon sa catégorie
+function isRecetteTopping(r){
+  const c=(r.cat||'').toLowerCase().trim();
+  return c==='topping'||c==='toppings'||c==='supplément'||c==='suppléments'||c==='supplement'||c==='supplements'||c.startsWith('topping')||c.startsWith('supplément');
+}
+window.setRecetteView=function(view){activeRecetteView=view;activeCatFilter='all';renderRecettes();};
 function refreshCatSuggestions(){const cats=[...new Set(DB.recettes.map(r=>r.cat).filter(Boolean))];document.getElementById('cat-suggestions').innerHTML=cats.map(c=>`<option value="${c}">`).join('');}
 function refreshIngCatSuggestions(){
   const cats=[...new Set(DB.recettes.flatMap(r=>(r.ingredients||[]).map(i=>i.cat).filter(Boolean)))];
@@ -745,7 +824,9 @@ window.editRecette=function(i){
     document.getElementById('r-image-preview').style.display='none';
   }
   document.getElementById('r-ingredients-list').innerHTML='';
-  r.ingredients.forEach(ing=>addIngredientLine(ing.name,ing.qty,ing.unit,ing.cat||''));
+  (r.ingredients||[]).forEach(ing=>addIngredientLine(ing.name,ing.qty,ing.unit,ing.cat||''));
+  const eligEl=document.getElementById('r-topping-eligible');
+  if(eligEl)eligEl.checked=!!(r.toppingEligible);
   refreshCatSuggestions();
   document.getElementById('modal-recette').classList.add('open');
 };
@@ -777,6 +858,8 @@ window.duplicateRecette=function(i){
   }
   document.getElementById('r-ingredients-list').innerHTML='';
   (r.ingredients||[]).forEach(ing=>addIngredientLine(ing.name,ing.qty,ing.unit,ing.cat||''));
+  const eligElD=document.getElementById('r-topping-eligible');
+  if(eligElD)eligElD.checked=!!(r.toppingEligible);
   refreshCatSuggestions();
   document.getElementById('modal-recette').classList.add('open');
 };
@@ -794,7 +877,9 @@ window.saveRecette=async function(){
   const ingredients=[];
   names.forEach((n,i)=>{const name=n.value.trim();const qty=parseFloat(qtys[i].value)||0;const unit=units[i].value.trim()||'unité';const cat=cats_ing[i]?cats_ing[i].value.trim():'';if(name&&qty>0)ingredients.push({name,qty,unit,cat});});
   if(ingredients.length===0){toast('❌ Au moins une matière première');return;}
-  const obj={id:editingRecetteIdx!==null?DB.recettes[editingRecetteIdx].id:Date.now(),nom,cat,prix,image:imageUrl,ingredients};
+  const eligSave=document.getElementById('r-topping-eligible');
+  const toppingEligible=eligSave?eligSave.checked:false;
+  const obj={id:editingRecetteIdx!==null?DB.recettes[editingRecetteIdx].id:Date.now(),nom,cat,prix,image:imageUrl,ingredients,toppingEligible};
   const newR=[...DB.recettes];
   if(editingRecetteIdx!==null){newR[editingRecetteIdx]=obj;}else{newR.push(obj);}
   await saveToFirebase('recettes',newR.reduce((o,r,j)=>{o[j]=r;return o;},{}));
@@ -803,15 +888,21 @@ window.saveRecette=async function(){
 
 function renderRecettes(){
   const c=document.getElementById('recettes-content');const isMaitre=userRole==='maitre';
-  const cats=['all',...new Set(DB.recettes.map(r=>r.cat||'Sans catégorie'))].sort((a,b)=>a==='all'?-1:b==='all'?1:a>b?1:-1);
+  // Séparation Produits / Toppings
+  const viewPool=activeRecetteView==='toppings'?DB.recettes.filter(r=>isRecetteTopping(r)):DB.recettes.filter(r=>!isRecetteTopping(r));
+  const cats=['all',...new Set(viewPool.map(r=>r.cat||'Sans catégorie'))].sort((a,b)=>a==='all'?-1:b==='all'?1:a>b?1:-1);
   if(!cats.includes(activeCatFilter))activeCatFilter='all';
-  const filtered=[...(activeCatFilter==='all'?DB.recettes:DB.recettes.filter(r=>(r.cat||'Sans catégorie')===activeCatFilter))].sort((a,b)=>a.nom>b.nom?1:-1);
-  const mpAgg={};DB.recettes.forEach(r=>{if(!r.ingredients)return;r.ingredients.forEach(ing=>{const k=ing.name.trim();if(!mpAgg[k])mpAgg[k]={unit:ing.unit,recettes:[]};mpAgg[k].recettes.push(r.nom);});});
+  const filtered=[...(activeCatFilter==='all'?viewPool:viewPool.filter(r=>(r.cat||'Sans catégorie')===activeCatFilter))].sort((a,b)=>a.nom>b.nom?1:-1);
+  const mpAgg={};viewPool.forEach(r=>{if(!r.ingredients)return;r.ingredients.forEach(ing=>{const k=ing.name.trim();if(!mpAgg[k])mpAgg[k]={unit:ing.unit,recettes:[]};mpAgg[k].recettes.push(r.nom);});});
   const mpSorted=Object.entries(mpAgg).sort((a,b)=>a[0]>b[0]?1:-1);
-  c.innerHTML=`
+  const viewToggle=`<div style="display:flex;gap:8px;margin-bottom:10px;">
+    <button onclick="setRecetteView('produits')" class="btn ${activeRecetteView==='produits'?'btn-primary':'btn-secondary'}" style="flex:1;font-size:12px;">🧁 Produits</button>
+    <button onclick="setRecetteView('toppings')" class="btn ${activeRecetteView==='toppings'?'btn-primary':'btn-secondary'}" style="flex:1;font-size:12px;">🧂 Toppings/Suppléments</button>
+  </div>`;
+  c.innerHTML=viewToggle+`
     <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">${cats.map(cat=>`<span class="cat-chip ${activeCatFilter===cat?'active':''}" onclick="setCatFilter('${cat}')">${cat==='all'?'Tous':cat}</span>`).join('')}</div>
     ${filtered.length===0?`<div class="empty-state"><div class="empty-icon">📋</div>Aucune recette</div>`:
-      filtered.map(r=>{const i=DB.recettes.indexOf(r);return`<div class="card"><div class="card-header"><div><div style="font-size:10px;color:var(--text3);margin-bottom:2px;">${r.cat||'Sans catégorie'}</div><div style="display:flex;align-items:center;gap:8px;">${r.image?`<img src="${r.image}" style="width:36px;height:36px;object-fit:cover;border-radius:8px;flex-shrink:0;">`:`<div style="width:36px;height:36px;border-radius:8px;background:var(--surface2);flex-shrink:0;"></div>`}<div class="card-title">${r.nom}</div></div></div><div style="display:flex;align-items:center;gap:6px;"><span class="badge badge-green">${fmtDH(r.prix)}</span>${isMaitre?`<button onclick="duplicateRecette(${i})" title="Dupliquer" style="background:var(--accent-light);border:none;color:var(--accent);font-size:12px;padding:4px 8px;border-radius:6px;cursor:pointer;">📋</button><button onclick="editRecette(${i})" style="background:var(--blue-light);border:none;color:var(--blue);font-size:12px;padding:4px 8px;border-radius:6px;cursor:pointer;">✏️</button><button onclick="deleteRecette(${i})" style="background:none;border:none;font-size:16px;cursor:pointer;color:var(--text3);">×</button>`:''}</div></div><div class="card-body" style="padding:8px 14px;">${(r.ingredients||[]).sort((a,b)=>a.name>b.name?1:-1).map(ing=>`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px;border-bottom:0.5px solid var(--border);"><span>${ing.name}${ing.cat?` <span style="color:var(--text3);font-size:10px;">(${ing.cat})</span>`:''}</span><span style="color:var(--text3);">${ing.qty} ${ing.unit}</span></div>`).join('')}</div></div>`;}).join('')}
+      filtered.map(r=>{const i=DB.recettes.indexOf(r);return`<div class="card"><div class="card-header"><div><div style="font-size:10px;color:var(--text3);margin-bottom:2px;">${r.cat||'Sans catégorie'}${r.toppingEligible?` <span style="background:var(--blue-light);color:var(--blue);font-size:9px;padding:1px 5px;border-radius:4px;margin-left:4px;">+Topping</span>`:''}</div><div style="display:flex;align-items:center;gap:8px;">${r.image?`<img src="${r.image}" style="width:36px;height:36px;object-fit:cover;border-radius:8px;flex-shrink:0;">`:`<div style="width:36px;height:36px;border-radius:8px;background:var(--surface2);flex-shrink:0;"></div>`}<div class="card-title">${r.nom}</div></div></div><div style="display:flex;align-items:center;gap:6px;"><span class="badge badge-green">${fmtDH(r.prix)}</span>${isMaitre?`<button onclick="duplicateRecette(${i})" title="Dupliquer" style="background:var(--accent-light);border:none;color:var(--accent);font-size:12px;padding:4px 8px;border-radius:6px;cursor:pointer;">📋</button><button onclick="editRecette(${i})" style="background:var(--blue-light);border:none;color:var(--blue);font-size:12px;padding:4px 8px;border-radius:6px;cursor:pointer;">✏️</button><button onclick="deleteRecette(${i})" style="background:none;border:none;font-size:16px;cursor:pointer;color:var(--text3);">×</button>`:''}</div></div><div class="card-body" style="padding:8px 14px;">${(r.ingredients||[]).sort((a,b)=>a.name>b.name?1:-1).map(ing=>`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px;border-bottom:0.5px solid var(--border);"><span>${ing.name}${ing.cat?` <span style="color:var(--text3);font-size:10px;">(${ing.cat})</span>`:''}</span><span style="color:var(--text3);">${ing.qty} ${ing.unit}</span></div>`).join('')}</div></div>`;}).join('')}
     <div class="section-title">Matières premières — ${mpSorted.length} unique(s)</div>
     <div class="card"><div class="card-body">${mpSorted.length===0?'<div style="color:var(--text3);font-size:12px;">Aucune</div>':mpSorted.map(([name,m])=>`<div class="list-item"><div><div class="list-name">${name}</div><div class="list-sub">${m.unit} · ${[...new Set(m.recettes)].sort().join(', ')}</div></div><span class="badge badge-blue">${(DB.stock[name]||0).toFixed(2)}</span></div>`).join('')}</div></div>`;
 }
@@ -1355,56 +1446,177 @@ window.showMPDetail=function(name){
 let calMonth=new Date().getMonth(),calYear=new Date().getFullYear(),calSelectedDate=null;
 const tmpVente={};
 
+// ==================== POS CAISSE ====================
+let posCart=[]; // [{recetteId,recetteNom,prixUnit,image,toppingId,toppingNom,toppingPrix,qty,cartKey}]
+let posCurrentCat=null;
+
+const POS_COLORS=[
+  {bg:'var(--accent-light)',border:'var(--accent)',text:'var(--accent)'},
+  {bg:'var(--blue-light)',border:'var(--blue)',text:'var(--blue)'},
+  {bg:'var(--amber-light)',border:'var(--amber)',text:'var(--amber)'},
+  {bg:'var(--purple-light)',border:'var(--purple)',text:'var(--purple)'},
+  {bg:'var(--danger-light)',border:'var(--danger)',text:'var(--danger)'},
+];
+
 function buildVenteForm(){
   const now=new Date();
   document.getElementById('vente-date-label').textContent=now.toLocaleDateString('fr-FR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
-  Object.keys(tmpVente).forEach(k=>tmpVente[k]=0);
-  const list=document.getElementById('vente-list');
-  if(DB.recettes.length===0){list.innerHTML='<div style="color:var(--text3);text-align:center;padding:20px;">Aucune recette disponible</div>';return;}
-  const cats=[...new Set(DB.recettes.map(r=>r.cat||'Sans catégorie'))].sort();
-  list.innerHTML=cats.map(cat=>{
-    const recs=[...DB.recettes.filter(r=>(r.cat||'Sans catégorie')===cat)].sort((a,b)=>a.nom>b.nom?1:-1);
-    return`<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:10px 0 8px;">${cat}</div>
-    <div class="produit-grid">${recs.map((r,i)=>`
-      <div class="produit-card" id="pcard-${r.id}">
-        ${r.image?`<img src="${r.image}" class="produit-img" alt="${r.nom}">`:`<div style="height:8px;"></div>`}
-        <div class="produit-nom">${r.nom}</div>
-        <div class="produit-prix">${fmtDH(r.prix)}</div>
-        <div class="produit-qty-bar">
-          <button class="qty-btn qty-btn-minus" onclick="changeVenteQty(${r.id},-1,event)">−</button>
-          <span class="qty-val" id="vqty-${r.id}">0</span>
-          <button class="qty-btn qty-btn-plus" onclick="changeVenteQty(${r.id},1,event)">+</button>
-        </div>
+  posCart=[];
+  posCurrentCat=null;
+  posRenderCategories();
+  posUpdateCartBar();
+}
+
+function posRenderCategories(){
+  const produitsReg=DB.recettes.filter(r=>!isRecetteTopping(r));
+  document.getElementById('pos-breadcrumb').innerHTML='<span class="pos-step-label">Choisir une catégorie</span>';
+  if(produitsReg.length===0){
+    document.getElementById('pos-content').innerHTML='<div style="color:var(--text3);text-align:center;padding:30px 0;">Aucun produit disponible</div>';
+    return;
+  }
+  const cats=[...new Set(produitsReg.map(r=>r.cat||'Sans catégorie'))].sort();
+  document.getElementById('pos-content').innerHTML=`<div class="pos-cat-grid">${
+    cats.map((cat,i)=>{
+      const c=POS_COLORS[i%POS_COLORS.length];
+      const count=produitsReg.filter(r=>(r.cat||'Sans catégorie')===cat).length;
+      const esc=cat.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      return`<div class="pos-cat-card" style="background:${c.bg};border-color:${c.border};" onclick="posSelectCategory('${esc}')">
+        <div class="pos-cat-name" style="color:${c.text};">${cat}</div>
+        <div class="pos-cat-count" style="color:${c.text};">${count} produit${count>1?'s':''}</div>
+      </div>`;
+    }).join('')
+  }</div>`;
+}
+
+window.posSelectCategory=function(cat){
+  posCurrentCat=cat;
+  posRenderProducts(cat);
+};
+
+function posRenderProducts(cat){
+  const prods=DB.recettes.filter(r=>!isRecetteTopping(r)&&(r.cat||'Sans catégorie')===cat).sort((a,b)=>a.nom>b.nom?1:-1);
+  const esc=cat.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  document.getElementById('pos-breadcrumb').innerHTML=`<button class="pos-back-btn" onclick="posRenderCategories()">← Catégories</button><span class="pos-step-label">${cat}</span>`;
+  document.getElementById('pos-content').innerHTML=`<div class="produit-grid">${
+    prods.map(r=>`<div class="produit-card" onclick="posSelectProduct(${r.id})">
+      ${r.image?`<img src="${r.image}" class="produit-img" alt="${r.nom}">`:`<div style="font-size:32px;line-height:1;">🍽</div>`}
+      <div class="produit-nom">${r.nom}</div>
+      <div class="produit-prix">${fmtDH(r.prix)}</div>
+      ${r.toppingEligible?`<div style="font-size:10px;color:var(--blue);font-weight:600;margin-top:-4px;">+Topping</div>`:''}
+    </div>`).join('')
+  }</div>`;
+}
+
+window.posSelectProduct=function(id){
+  const r=DB.recettes.find(x=>x.id===id);
+  if(!r)return;
+  const toppings=DB.recettes.filter(x=>isRecetteTopping(x));
+  if(r.toppingEligible&&toppings.length>0){
+    posRenderToppings(r);
+  } else {
+    posAddItemToCart(r,null);
+    posRenderProducts(posCurrentCat);
+    posUpdateCartBar();
+  }
+};
+
+function posRenderToppings(product){
+  const toppings=DB.recettes.filter(r=>isRecetteTopping(r));
+  document.getElementById('pos-breadcrumb').innerHTML=`<button class="pos-back-btn" onclick="posRenderProducts(posCurrentCat)">← ${posCurrentCat}</button><span class="pos-step-label">${product.nom}</span>`;
+  document.getElementById('pos-content').innerHTML=`
+    <div style="font-size:13px;color:var(--text3);margin-bottom:12px;text-align:center;">Choisir un topping pour <strong>${product.nom}</strong></div>
+    <div class="produit-grid">
+      <div class="produit-card" onclick="posConfirmTopping(${product.id},null)">
+        <div style="font-size:32px;line-height:1;">⬜</div>
+        <div class="produit-nom">Sans topping</div>
+        <div class="produit-prix">+0.00 DH</div>
+      </div>
+      ${toppings.map(t=>`<div class="produit-card" onclick="posConfirmTopping(${product.id},${t.id})">
+        ${t.image?`<img src="${t.image}" class="produit-img" alt="${t.nom}">`:`<div style="font-size:32px;line-height:1;">🧂</div>`}
+        <div class="produit-nom">${t.nom}</div>
+        <div class="produit-prix">+${fmtDH(t.prix)}</div>
       </div>`).join('')}
     </div>`;
-  }).join('');
-  updateVenteTotal();
 }
 
-function updateVenteTotal(){
-  let total=0;
-  DB.recettes.forEach(r=>{total+=(tmpVente[r.id]||0)*r.prix;});
-  const el=document.getElementById('vente-total-preview');
-  if(el)el.textContent=fmtDH(total);
+window.posConfirmTopping=function(productId,toppingId){
+  const product=DB.recettes.find(r=>r.id===productId);
+  const topping=toppingId?DB.recettes.find(r=>r.id===toppingId):null;
+  if(!product)return;
+  posAddItemToCart(product,topping);
+  posRenderProducts(posCurrentCat);
+  posUpdateCartBar();
+};
+
+function posAddItemToCart(product,topping){
+  const cartKey=`${product.id}_${topping?topping.id:'none'}`;
+  const existing=posCart.find(item=>item.cartKey===cartKey);
+  if(existing){existing.qty++;return;}
+  posCart.push({
+    recetteId:product.id,recetteNom:product.nom,prixUnit:product.prix,image:product.image||'',
+    toppingId:topping?topping.id:null,toppingNom:topping?topping.nom:null,toppingPrix:topping?topping.prix:null,
+    qty:1,cartKey
+  });
 }
 
-window.changeVenteQty=function(id,delta,e){
-  if(e)e.stopPropagation();
-  tmpVente[id]=Math.max(0,(tmpVente[id]||0)+delta);
-  const el=document.getElementById('vqty-'+id);if(el)el.textContent=tmpVente[id];
-  const card=document.getElementById('pcard-'+id);
-  if(card)card.classList.toggle('selected',tmpVente[id]>0);
-  updateVenteTotal();
+function posUpdateCartBar(){
+  const bar=document.getElementById('pos-cart-bar');
+  if(!bar)return;
+  const totalItems=posCart.reduce((s,i)=>s+i.qty,0);
+  const totalPrice=posCart.reduce((s,i)=>s+i.qty*(i.prixUnit+(i.toppingPrix||0)),0);
+  if(totalItems===0){
+    bar.innerHTML='<div style="text-align:center;color:var(--text3);font-size:12px;padding:4px 0;">Panier vide — sélectionne un produit</div>';
+  } else {
+    bar.innerHTML=`<div style="display:flex;gap:8px;">
+      <button class="btn btn-secondary" style="flex:1;" onclick="posShowCart()">🛒 ${totalItems} article${totalItems>1?'s':''} — ${fmtDH(totalPrice)}</button>
+      <button class="btn btn-primary" style="flex:1;" onclick="saveVente()">✅ Valider</button>
+    </div>`;
+  }
+}
+
+window.posShowCart=function(){
+  document.getElementById('pos-breadcrumb').innerHTML=`<button class="pos-back-btn" onclick="posRenderCategories()">← Continuer</button><span class="pos-step-label">Mon panier</span>`;
+  if(posCart.length===0){document.getElementById('pos-content').innerHTML='<div style="text-align:center;color:var(--text3);padding:30px 0;">Panier vide</div>';return;}
+  const total=posCart.reduce((s,i)=>s+i.qty*(i.prixUnit+(i.toppingPrix||0)),0);
+  document.getElementById('pos-content').innerHTML=`
+    ${posCart.map((item,idx)=>`<div class="pos-cart-item">
+      ${item.image?`<img src="${item.image}" class="pos-cart-thumb">`:`<div class="pos-cart-thumb-placeholder">🍽</div>`}
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:600;">${item.recetteNom}</div>
+        ${item.toppingNom?`<div style="font-size:11px;color:var(--blue);">+ ${item.toppingNom}</div>`:''}
+        <div style="font-size:12px;color:var(--text3);">${fmtDH(item.prixUnit+(item.toppingPrix||0))} × ${item.qty} = ${fmtDH(item.qty*(item.prixUnit+(item.toppingPrix||0)))}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+        <button class="qty-btn qty-btn-minus" onclick="posCartQty(${idx},-1)">−</button>
+        <span style="font-size:14px;font-weight:700;min-width:20px;text-align:center;">${item.qty}</span>
+        <button class="qty-btn qty-btn-plus" onclick="posCartQty(${idx},1)">+</button>
+      </div>
+    </div>`).join('')}
+    <div style="padding-top:12px;display:flex;justify-content:space-between;font-size:15px;font-weight:700;">
+      <span>Total</span><span style="color:var(--accent);">${fmtDH(total)}</span>
+    </div>`;
+};
+
+window.posCartQty=function(idx,delta){
+  posCart[idx].qty=Math.max(0,posCart[idx].qty+delta);
+  if(posCart[idx].qty===0)posCart.splice(idx,1);
+  posUpdateCartBar();
+  window.posShowCart();
 };
 
 window.saveVente=async function(){
+  if(posCart.length===0){toast('Aucune vente saisie');return;}
   const now=new Date();let total=0;const entries=[];
-  DB.recettes.forEach(r=>{const qty=tmpVente[r.id]||0;if(qty>0){entries.push({recetteId:r.id,recetteNom:r.nom,qty,prixUnit:r.prix});total+=qty*r.prix;}});
-  if(entries.length===0){toast('Aucune vente saisie');return;}
-  for(const e of entries){await pushToFirebase('ventes',{recetteId:e.recetteId,recetteNom:e.recetteNom,qty:e.qty,prixUnit:e.prixUnit,date:now.toISOString()});}
+  for(const item of posCart){
+    const totalPrix=item.prixUnit+(item.toppingPrix||0);
+    entries.push({recetteId:item.recetteId,recetteNom:item.recetteNom,qty:item.qty,prixUnit:totalPrix,toppingId:item.toppingId||null,toppingNom:item.toppingNom||null,toppingPrix:item.toppingPrix||null});
+    total+=item.qty*totalPrix;
+    await pushToFirebase('ventes',{recetteId:item.recetteId,recetteNom:item.recetteNom,qty:item.qty,prixUnit:totalPrix,toppingId:item.toppingId||null,toppingNom:item.toppingNom||null,toppingPrix:item.toppingPrix||null,date:now.toISOString()});
+  }
   await pushToFirebase('historique',{type:'vente',date:now.toISOString(),entries,total});
-  Object.keys(tmpVente).forEach(k=>tmpVente[k]=0);
-  closeModal('modal-vente');toast(`✅ ${entries.length} produit(s) — ${fmtDH(total)}`);
+  posCart=[];
+  closeModal('modal-vente');
+  toast(`✅ ${entries.length} produit${entries.length>1?'s':''} — ${fmtDH(total)}`);
 };
 
 // Correction des ventes du jour
@@ -1595,6 +1807,8 @@ window.saveDateLancement=async function(){
 };
 
 window.setFinanceTab=function(t){financeTab=t;renderFinance();};
+window.setFinanceMargesFilter=function(f){financeMargesFilter=f;financeMargesCat='all';renderFinance();};
+window.setFinanceMargesCat=function(c){financeMargesCat=c;renderFinance();};
 
 // ==================== FINANCE HELPERS ====================
 
@@ -1751,7 +1965,7 @@ function calcPeriode(dateDebut, dateFin){
     pctBrute:ca>0?(margeBrute/ca*100):0, pctNette:ca>0?(margeNette/ca*100):0,
     pctNettePerte:ca>0?(margeNetteAvecPerte/ca*100):0 };
 }
-let financeTab = 'matieres';
+let financeTab = 'matieres', financeMargesFilter = 'all', financeMargesCat = 'all';
 let periodeDebut = '';
 let periodeFin = '';
 
@@ -1862,10 +2076,20 @@ function renderFinance(){
         }).join('')+
       '</div></div>';
     }
+    var margesFilterToggle='<div style="display:flex;gap:8px;margin-bottom:12px;">'+
+      '<button onclick="setFinanceMargesFilter(\'all\')" class="btn '+(financeMargesFilter==='all'?'btn-primary':'btn-secondary')+'" style="flex:1;font-size:11px;">Tous</button>'+
+      '<button onclick="setFinanceMargesFilter(\'produits\')" class="btn '+(financeMargesFilter==='produits'?'btn-primary':'btn-secondary')+'" style="flex:1;font-size:11px;">🧁 Produits</button>'+
+      '<button onclick="setFinanceMargesFilter(\'toppings\')" class="btn '+(financeMargesFilter==='toppings'?'btn-primary':'btn-secondary')+'" style="flex:1;font-size:11px;">🧂 Toppings/Suppléments</button>'+
+    '</div>';
+    var recettesFiltrees=financeMargesFilter==='all'?DB.recettes:financeMargesFilter==='toppings'?DB.recettes.filter(function(r){return isRecetteTopping(r);}):DB.recettes.filter(function(r){return !isRecetteTopping(r);});
+    var catsMarges=['all',...new Set(recettesFiltrees.map(function(r){return r.cat||'Sans catégorie';}))].sort(function(a,b){return a==='all'?-1:b==='all'?1:a>b?1:-1;});
+    if(!catsMarges.includes(financeMargesCat))financeMargesCat='all';
+    var recettesParCat=financeMargesCat==='all'?recettesFiltrees:recettesFiltrees.filter(function(r){return (r.cat||'Sans catégorie')===financeMargesCat;});
+    var catChipsMarges=catsMarges.length>1?'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">'+catsMarges.map(function(cat){return'<span class="cat-chip '+(financeMargesCat===cat?'active':'')+'" onclick="setFinanceMargesCat(\''+cat+'\')">'+( cat==='all'?'Toutes':cat)+'</span>';}).join('')+'</div>':'';
     bodyHTML=DB.recettes.length===0
       ?'<div class="empty-state"><div class="empty-icon">📊</div>Aucune recette</div>'
-      :perteBlock+'<div class="section-title">Marges brutes par produit (CMP)</div>'+
-        [...DB.recettes].sort(function(a,b){return a.nom>b.nom?1:-1;}).map(function(r){
+      :perteBlock+margesFilterToggle+catChipsMarges+'<div class="section-title">Marges brutes par produit (CMP)</div>'+
+        [...recettesParCat].sort(function(a,b){return a.nom>b.nom?1:-1;}).map(function(r){
           var mk=monthKey(new Date());
           var cout=calcCoutMatiere(r,false,mk),marge=r.prix-cout;
           var coutGlobal=calcCoutMatiere(r,false,null);
@@ -1874,11 +2098,12 @@ function renderFinance(){
           var color=pct>=50?'var(--accent)':pct>=30?'var(--amber)':'var(--danger)';
           var bgColor=pct>=50?'var(--accent-light)':pct>=30?'var(--amber-light)':'var(--danger-light)';
           var badgeCls=pct>=50?'badge-green':pct>=30?'badge-amber':'badge-red';
+          var toppingBadge=isRecetteTopping(r)?'<span style="background:var(--blue-light);color:var(--blue);font-size:9px;padding:1px 5px;border-radius:4px;margin-left:4px;">Topping</span>':'';
           return '<div class="card"><div class="card-body">'+
             '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">'+
               '<div style="display:flex;align-items:center;gap:8px;">'+
                 (r.image?'<img src="'+r.image+'" style="width:40px;height:40px;object-fit:cover;border-radius:8px;">':'<div style="width:40px;height:40px;border-radius:8px;background:var(--surface2);"></div>')+
-                '<div><div class="list-name">'+r.nom+'</div><div class="list-sub">'+(r.cat||'')+(hasCMP?' · CMP actif':'')+' </div></div>'+
+                '<div><div class="list-name">'+r.nom+toppingBadge+'</div><div class="list-sub">'+(r.cat||'')+(hasCMP?' · CMP actif':'')+' </div></div>'+
               '</div>'+
               '<span class="badge '+badgeCls+'">'+pct.toFixed(0)+'%</span>'+
             '</div>'+
@@ -2836,6 +3061,86 @@ function renderSauvegardes(){
 }
 
 renderTabs();
+
+// ==================== PEXELS IMAGE SEARCH ====================
+async function getPexelsKey(){
+  // Clé stockée dans Firebase sous stockapp/settings/pexelsKey
+  if(window._pexelsKey) return window._pexelsKey;
+  const snap = await get(ref(db,'stockapp/settings/pexelsKey'));
+  if(snap.exists()){ window._pexelsKey = snap.val(); return window._pexelsKey; }
+  // Demande la clé à l'utilisateur
+  const key = prompt('🔑 Clé API Pexels requise (gratuite sur pexels.com/api)\nColle ta clé ici :');
+  if(!key) return null;
+  await set(ref(db,'stockapp/settings/pexelsKey'), key.trim());
+  window._pexelsKey = key.trim();
+  return window._pexelsKey;
+}
+
+window.searchImagePexels = async function(){
+  const key = await getPexelsKey();
+  if(!key) return;
+  const nom = document.getElementById('r-nom').value.trim() || 'food drink';
+  const grid = document.getElementById('pexels-grid');
+  const box = document.getElementById('pexels-results');
+  grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:12px;color:var(--text3);font-size:12px;">Recherche en cours...</div>';
+  box.style.display = 'block';
+  try {
+    const resp = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(nom+' food')}&per_page=6&orientation=square`, {
+      headers:{ Authorization: key }
+    });
+    if(!resp.ok){ throw new Error('Clé invalide'); }
+    const data = await resp.json();
+    if(!data.photos || data.photos.length === 0){
+      grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:12px;color:var(--text3);font-size:12px;">Aucun résultat</div>';
+      return;
+    }
+    grid.innerHTML = data.photos.map(p =>
+      `<img src="${p.src.medium}" onclick="selectPexelsImage('${p.src.large}')"
+        style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid transparent;transition:border .15s;"
+        onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='transparent'">`
+    ).join('');
+  } catch(e) {
+    grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:12px;color:var(--danger);font-size:12px;">❌ ${e.message === 'Clé invalide' ? 'Clé API invalide — vérifie sur pexels.com' : 'Erreur réseau'}</div>`;
+    if(e.message === 'Clé invalide'){ window._pexelsKey = null; await set(ref(db,'stockapp/settings/pexelsKey'), null); }
+  }
+};
+
+window.selectPexelsImage = function(url){
+  document.getElementById('r-image-url').value = url;
+  document.getElementById('r-image-preview-img').src = url;
+  document.getElementById('r-image-preview').style.display = 'block';
+  document.getElementById('pexels-results').style.display = 'none';
+  window._imageBase64 = null;
+};
+
+window.updateAllRecetteImages = async function(){
+  if(userRole !== 'maitre'){ toast('⛔ Réservé au compte Maître'); return; }
+  const key = await getPexelsKey();
+  if(!key) return;
+  const recettesAMaj = DB.recettes.filter(r => !r.image || r.image.startsWith('data:'));
+  if(recettesAMaj.length === 0){ toast('✅ Toutes les images sont déjà des URLs web !'); return; }
+  if(!confirm(`Mettre à jour les images de ${recettesAMaj.length} recette(s) avec des photos du web ?`)) return;
+  toast('⏳ Mise à jour en cours...');
+  const newR = [...DB.recettes];
+  let updated = 0;
+  for(const r of recettesAMaj){
+    try {
+      const resp = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(r.nom+' food')}&per_page=1&orientation=square`, {
+        headers:{ Authorization: key }
+      });
+      const data = await resp.json();
+      if(data.photos && data.photos.length > 0){
+        const idx = DB.recettes.findIndex(x => x.id === r.id);
+        if(idx >= 0){ newR[idx] = {...newR[idx], image: data.photos[0].src.large}; updated++; }
+      }
+    } catch(e){ console.warn('Erreur pour', r.nom, e); }
+    await new Promise(res => setTimeout(res, 300)); // évite rate-limit
+  }
+  await saveToFirebase('recettes', newR.reduce((o,r,j)=>{o[j]=r;return o;},{}));
+  toast(`✅ ${updated} image(s) mise(s) à jour !`);
+};
+
+window._pexelsKey = null;
 
 // ==================== IMAGE HELPERS ====================
 window.previewRecetteImage=function(){
