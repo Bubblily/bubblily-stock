@@ -174,6 +174,54 @@ body{font-family:-apple-system,'SF Pro Text','Helvetica Neue',sans-serif;backgro
   .header{padding:14px 24px 12px;}
   .content{padding:16px 24px;}
 }
+/* ===== POS PLEIN ÉCRAN ===== */
+#modal-vente{align-items:stretch;justify-content:flex-start;}
+#modal-vente .modal{width:100vw;max-width:100vw;height:100dvh;max-height:100dvh;border-radius:0;padding:0;overflow:hidden;}
+#modal-vente .pos-modal{height:100%;max-height:100%;padding:env(safe-area-inset-top,10px) 16px 10px;box-sizing:border-box;}
+#modal-vente .modal-handle{display:none;}
+/* ===== PAYSAGE MOBILE/TABLETTE ===== */
+@media (orientation:landscape) and (min-height:521px) and (max-height:700px){
+  body{font-size:14px;}
+  .header{padding:7px 16px 6px;}
+  .header-title{font-size:16px;}
+  .content{padding:8px 14px;}
+  .card-body{padding:12px 16px;}
+  .tabs{gap:0;}
+  .tab{padding:9px 12px;font-size:13px;}
+  .produit-grid{grid-template-columns:repeat(4,1fr);gap:8px;}
+  .produit-card{min-height:120px;padding:10px 8px;}
+  .produit-img{width:50px;height:50px;}
+  .pos-cat-grid{grid-template-columns:repeat(4,1fr);gap:8px;}
+  .pos-cat-card{padding:12px 10px 10px;}
+  #modal-vente .pos-modal{padding:8px 16px 8px;}
+}
+@media (orientation:landscape) and (max-height:520px){
+  body{font-size:13px;}
+  .header{padding:5px 12px 4px;}
+  .header-title{font-size:14px;}
+  .header-logo{width:26px;height:26px;}
+  .content{padding:5px 10px;}
+  .card{margin-bottom:6px;}
+  .card-body{padding:8px 12px;}
+  .tabs{gap:0;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  .tab{padding:7px 9px;font-size:11px;white-space:nowrap;}
+  .produit-grid{grid-template-columns:repeat(4,1fr);gap:5px;}
+  .produit-card{min-height:90px;padding:7px 5px;}
+  .produit-img{width:38px;height:38px;}
+  .produit-nom{font-size:11px;}
+  .produit-prix{font-size:11px;}
+  .btn{padding:8px 12px;font-size:12px;}
+  .input{padding:7px 9px;font-size:12px;}
+  .pos-cat-grid{grid-template-columns:repeat(4,1fr);gap:5px;}
+  .pos-cat-card{padding:8px 6px 7px;}
+  .pos-cat-name{font-size:11px;}
+  .pos-cat-count{font-size:10px;}
+  .pos-breadcrumb{margin-bottom:5px;}
+  .pos-cart-bar{padding-top:5px;margin-top:3px;}
+  .pos-cart-item{padding:5px 0;}
+  .pos-step-label{font-size:12px;}
+  #modal-vente .pos-modal{padding:6px 12px 6px;}
+}
 </style>
 </head>
 <body>
@@ -300,9 +348,16 @@ body{font-family:-apple-system,'SF Pro Text','Helvetica Neue',sans-serif;backgro
     <div style="font-size:11px;color:var(--blue);background:var(--blue-light);padding:6px 10px;border-radius:6px;margin-bottom:10px;">
       💡 Si la catégorie contient <strong>Topping</strong> ou <strong>Supplément</strong>, la recette sera automatiquement classée dans Toppings/Suppléments.
     </div>
-    <div id="r-topping-eligible-wrap" style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-      <input type="checkbox" id="r-topping-eligible" style="width:16px;height:16px;cursor:pointer;">
-      <label for="r-topping-eligible" style="font-size:13px;cursor:pointer;">Article éligible aux toppings/suppléments</label>
+    <div id="r-topping-eligible-wrap" style="margin-bottom:12px;padding:10px;background:var(--surface2);border-radius:var(--radius-sm);">
+      <div style="font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Éligibilité add-ons</div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:6px;">
+        <input type="checkbox" id="r-supplement-eligible" style="width:16px;height:16px;cursor:pointer;">
+        ➕ Éligible Suppléments
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
+        <input type="checkbox" id="r-topping-eligible" style="width:16px;height:16px;cursor:pointer;">
+        🧂 Éligible Toppings
+      </label>
     </div>
     <div class="label">Nom du produit</div>
     <input class="input" id="r-nom" placeholder="Ex: Croissant, Pizza..." style="margin-bottom:10px;">
@@ -768,11 +823,18 @@ document.getElementById('ch-type').addEventListener('change', window.onChargeTyp
 
 // ==================== RECETTES ====================
 let editingRecetteIdx=null, activeCatFilter='all', activeRecetteView='produits';
-// Détermine automatiquement si une recette est un Topping/Supplément selon sa catégorie
+// Détermine si une recette EST un Topping (add-on de type topping uniquement)
 function isRecetteTopping(r){
   const c=(r.cat||'').toLowerCase().trim();
-  return c==='topping'||c==='toppings'||c==='supplément'||c==='suppléments'||c==='supplement'||c==='supplements'||c.startsWith('topping')||c.startsWith('supplément');
+  return c==='topping'||c==='toppings'||c.startsWith('topping');
 }
+// Détermine si une recette EST un Supplément (add-on de type supplément)
+function isRecetteSupplément(r){
+  const c=(r.cat||'').toLowerCase().trim();
+  return c==='supplément'||c==='suppléments'||c==='supplement'||c==='supplements'||c.startsWith('supplément')||c.startsWith('supplement');
+}
+// Vrai si c'est un add-on (topping OU supplément)
+function isRecetteAddon(r){return isRecetteTopping(r)||isRecetteSupplément(r);}
 window.setRecetteView=function(view){activeRecetteView=view;activeCatFilter='all';renderRecettes();};
 function refreshCatSuggestions(){const cats=[...new Set(DB.recettes.map(r=>r.cat).filter(Boolean))];document.getElementById('cat-suggestions').innerHTML=cats.map(c=>`<option value="${c}">`).join('');}
 function refreshIngCatSuggestions(){
@@ -912,7 +974,7 @@ window.saveRecette=async function(){
 function renderRecettes(){
   const c=document.getElementById('recettes-content');const isMaitre=userRole==='maitre';
   // Séparation Produits / Toppings
-  const viewPool=activeRecetteView==='toppings'?DB.recettes.filter(r=>isRecetteTopping(r)):DB.recettes.filter(r=>!isRecetteTopping(r));
+  const viewPool=activeRecetteView==='toppings'?DB.recettes.filter(r=>isRecetteAddon(r)):DB.recettes.filter(r=>!isRecetteAddon(r));
   const cats=['all',...new Set(viewPool.map(r=>r.cat||'Sans catégorie'))].sort((a,b)=>a==='all'?-1:b==='all'?1:a>b?1:-1);
   if(!cats.includes(activeCatFilter))activeCatFilter='all';
   const filtered=[...(activeCatFilter==='all'?viewPool:viewPool.filter(r=>(r.cat||'Sans catégorie')===activeCatFilter))].sort((a,b)=>a.nom>b.nom?1:-1);
@@ -1470,7 +1532,7 @@ let calMonth=new Date().getMonth(),calYear=new Date().getFullYear(),calSelectedD
 const tmpVente={};
 
 // ==================== POS CAISSE ====================
-let posCart=[]; // [{recetteId,recetteNom,prixUnit,image,toppingId,toppingNom,toppingPrix,qty,cartKey}]
+let posCart=[]; // [{recetteId,recetteNom,prixUnit,image,supplementId,supplementNom,supplementPrix,toppingId,toppingNom,toppingPrix,qty,cartKey}]
 let posCurrentCat=null;
 
 const POS_COLORS=[
@@ -1484,19 +1546,13 @@ const POS_COLORS=[
 function buildVenteForm(){
   const now=new Date();
   document.getElementById('vente-date-label').textContent=now.toLocaleDateString('fr-FR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
-  posCart=[];
-  posCurrentCat=null;
-  posRenderCategories();
-  posUpdateCartBar();
+  posCart=[];posCurrentCat=null;posRenderCategories();posUpdateCartBar();
 }
 
 function posRenderCategories(){
-  const produitsReg=DB.recettes.filter(r=>!isRecetteTopping(r));
+  const produitsReg=DB.recettes.filter(r=>!isRecetteAddon(r));
   document.getElementById('pos-breadcrumb').innerHTML='<span class="pos-step-label">Choisir une catégorie</span>';
-  if(produitsReg.length===0){
-    document.getElementById('pos-content').innerHTML='<div style="color:var(--text3);text-align:center;padding:30px 0;">Aucun produit disponible</div>';
-    return;
-  }
+  if(produitsReg.length===0){document.getElementById('pos-content').innerHTML='<div style="color:var(--text3);text-align:center;padding:30px 0;">Aucun produit disponible</div>';return;}
   const cats=[...new Set(produitsReg.map(r=>r.cat||'Sans catégorie'))].sort();
   document.getElementById('pos-content').innerHTML=`<div class="pos-cat-grid">${
     cats.map((cat,i)=>{
@@ -1511,50 +1567,89 @@ function posRenderCategories(){
   }</div>`;
 }
 
-window.posSelectCategory=function(cat){
-  posCurrentCat=cat;
-  posRenderProducts(cat);
-};
+window.posSelectCategory=function(cat){posCurrentCat=cat;posRenderProducts(cat);};
 
 function posRenderProducts(cat){
-  const prods=DB.recettes.filter(r=>!isRecetteTopping(r)&&(r.cat||'Sans catégorie')===cat).sort((a,b)=>a.nom>b.nom?1:-1);
+  const prods=DB.recettes.filter(r=>!isRecetteAddon(r)&&(r.cat||'Sans catégorie')===cat).sort((a,b)=>a.nom>b.nom?1:-1);
   const esc=cat.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
   document.getElementById('pos-breadcrumb').innerHTML=`<button class="pos-back-btn" onclick="posRenderCategories()">← Catégories</button><span class="pos-step-label">${cat}</span>`;
   document.getElementById('pos-content').innerHTML=`<div class="produit-grid">${
-    prods.map(r=>`<div class="produit-card" onclick="posSelectProduct(${r.id})">
-      ${r.image?`<img src="${r.image}" class="produit-img" alt="${r.nom}">`:`<div style="font-size:32px;line-height:1;">🍽</div>`}
-      <div class="produit-nom">${r.nom}</div>
-      <div class="produit-prix">${fmtDH(r.prix)}</div>
-      ${r.toppingEligible?`<div style="font-size:10px;color:var(--blue);font-weight:600;margin-top:-4px;">+Topping</div>`:''}
-    </div>`).join('')
+    prods.map(r=>{
+      const cartQty=posCart.filter(i=>i.recetteId===r.id).reduce((s,i)=>s+i.qty,0);
+      const badge=cartQty>0?`<div style="position:absolute;top:6px;right:6px;background:var(--accent);color:#fff;border-radius:50%;width:22px;height:22px;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;z-index:1;">${cartQty}</div>`:'';
+      const addons=(()=>{const b=[];if(r.supplementEligible)b.push('<span style="color:var(--amber);">+Suppl.</span>');if(r.toppingEligible)b.push('<span style="color:var(--blue);">+Topping</span>');return b.length?`<div style="font-size:10px;font-weight:600;margin-top:-4px;">${b.join(' ')}</div>`:'';})();
+      return `<div class="produit-card" onclick="posSelectProduct(${r.id})" style="position:relative;">
+        ${badge}
+        ${r.image?`<img src="${r.image}" class="produit-img" alt="${r.nom}">`:`<div style="font-size:32px;line-height:1;">🍽</div>`}
+        <div class="produit-nom">${r.nom}</div>
+        <div class="produit-prix">${fmtDH(r.prix)}</div>
+        ${addons}
+      </div>`;
+    }).join('')
   }</div>`;
 }
 
 window.posSelectProduct=function(id){
   const r=DB.recettes.find(x=>x.id===id);
   if(!r)return;
+  const supplements=DB.recettes.filter(x=>isRecetteSupplément(x));
   const toppings=DB.recettes.filter(x=>isRecetteTopping(x));
-  if(r.toppingEligible&&toppings.length>0){
-    posRenderToppings(r);
-  } else {
-    posAddItemToCart(r,null);
-    posRenderProducts(posCurrentCat);
-    posUpdateCartBar();
+  const needsSuppl=r.supplementEligible&&supplements.length>0;
+  const needsTopping=r.toppingEligible&&toppings.length>0;
+  if(needsSuppl){posRenderSupplements(r,needsTopping);}
+  else if(needsTopping){posRenderToppings(r,null);}
+  else{posAddItemToCart(r,null,null);toast(`✅ ${r.nom} ajouté`);posRenderProducts(posCurrentCat);posUpdateCartBar();}
+};
+
+function posRenderSupplements(product,needsToppingAfter){
+  const supplements=DB.recettes.filter(r=>isRecetteSupplément(r));
+  const esc=posCurrentCat.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  document.getElementById('pos-breadcrumb').innerHTML=`<button class="pos-back-btn" onclick="posRenderProducts('${esc}')">← ${posCurrentCat}</button><span class="pos-step-label">${product.nom} — Supplément</span>`;
+  document.getElementById('pos-content').innerHTML=`
+    <div style="font-size:13px;color:var(--text3);margin-bottom:10px;text-align:center;">Choisir un supplément pour <strong>${product.nom}</strong></div>
+    <div class="produit-grid">
+      <div class="produit-card" onclick="posConfirmSupplément(${product.id},null,${!!needsToppingAfter})">
+        <div style="font-size:32px;line-height:1;">⬜</div>
+        <div class="produit-nom">Sans supplément</div>
+        <div class="produit-prix">+0.00 DH</div>
+      </div>
+      ${supplements.map(s=>`<div class="produit-card" onclick="posConfirmSupplément(${product.id},${s.id},${!!needsToppingAfter})">
+        ${s.image?`<img src="${s.image}" class="produit-img" alt="${s.nom}">`:`<div style="font-size:32px;line-height:1;">➕</div>`}
+        <div class="produit-nom">${s.nom}</div>
+        <div class="produit-prix">+${fmtDH(s.prix)}</div>
+      </div>`).join('')}
+    </div>`;
+}
+
+window.posConfirmSupplément=function(productId,supplementId,needsToppingAfter){
+  const product=DB.recettes.find(r=>r.id===productId);
+  const supplement=supplementId?DB.recettes.find(r=>r.id===supplementId):null;
+  if(!product)return;
+  const toppings=DB.recettes.filter(r=>isRecetteTopping(r));
+  if(needsToppingAfter&&toppings.length>0){posRenderToppings(product,supplement);}
+  else{
+    posAddItemToCart(product,supplement,null);
+    const label=supplement?`${product.nom} + ${supplement.nom}`:product.nom;
+    toast(`✅ ${label} ajouté`);
+    posRenderProducts(posCurrentCat);posUpdateCartBar();
   }
 };
 
-function posRenderToppings(product){
+function posRenderToppings(product,supplement){
   const toppings=DB.recettes.filter(r=>isRecetteTopping(r));
-  document.getElementById('pos-breadcrumb').innerHTML=`<button class="pos-back-btn" onclick="posRenderProducts(posCurrentCat)">← ${posCurrentCat}</button><span class="pos-step-label">${product.nom}</span>`;
+  const suppId=supplement?supplement.id:'null';
+  const esc=posCurrentCat.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  const suppLabel=supplement?` + ${supplement.nom}`:'';
+  document.getElementById('pos-breadcrumb').innerHTML=`<button class="pos-back-btn" onclick="posRenderProducts('${esc}')">← ${posCurrentCat}</button><span class="pos-step-label">${product.nom}${suppLabel} — Topping</span>`;
   document.getElementById('pos-content').innerHTML=`
-    <div style="font-size:13px;color:var(--text3);margin-bottom:12px;text-align:center;">Choisir un topping pour <strong>${product.nom}</strong></div>
+    <div style="font-size:13px;color:var(--text3);margin-bottom:10px;text-align:center;">Choisir un topping pour <strong>${product.nom}</strong></div>
     <div class="produit-grid">
-      <div class="produit-card" onclick="posConfirmTopping(${product.id},null)">
+      <div class="produit-card" onclick="posConfirmTopping(${product.id},${suppId},null)">
         <div style="font-size:32px;line-height:1;">⬜</div>
         <div class="produit-nom">Sans topping</div>
         <div class="produit-prix">+0.00 DH</div>
       </div>
-      ${toppings.map(t=>`<div class="produit-card" onclick="posConfirmTopping(${product.id},${t.id})">
+      ${toppings.map(t=>`<div class="produit-card" onclick="posConfirmTopping(${product.id},${suppId},${t.id})">
         ${t.image?`<img src="${t.image}" class="produit-img" alt="${t.nom}">`:`<div style="font-size:32px;line-height:1;">🧂</div>`}
         <div class="produit-nom">${t.nom}</div>
         <div class="produit-prix">+${fmtDH(t.prix)}</div>
@@ -1562,21 +1657,24 @@ function posRenderToppings(product){
     </div>`;
 }
 
-window.posConfirmTopping=function(productId,toppingId){
+window.posConfirmTopping=function(productId,supplementId,toppingId){
   const product=DB.recettes.find(r=>r.id===productId);
+  const supplement=(supplementId&&supplementId!==null&&String(supplementId)!=='null')?DB.recettes.find(r=>r.id===supplementId):null;
   const topping=toppingId?DB.recettes.find(r=>r.id===toppingId):null;
   if(!product)return;
-  posAddItemToCart(product,topping);
-  posRenderProducts(posCurrentCat);
-  posUpdateCartBar();
+  posAddItemToCart(product,supplement,topping);
+  const parts=[product.nom];if(supplement)parts.push(supplement.nom);if(topping)parts.push(topping.nom);
+  toast(`✅ ${parts.join(' + ')} ajouté`);
+  posRenderProducts(posCurrentCat);posUpdateCartBar();
 };
 
-function posAddItemToCart(product,topping){
-  const cartKey=`${product.id}_${topping?topping.id:'none'}`;
+function posAddItemToCart(product,supplement,topping){
+  const cartKey=`${product.id}_${supplement?supplement.id:'none'}_${topping?topping.id:'none'}`;
   const existing=posCart.find(item=>item.cartKey===cartKey);
   if(existing){existing.qty++;return;}
   posCart.push({
     recetteId:product.id,recetteNom:product.nom,prixUnit:product.prix,image:product.image||'',
+    supplementId:supplement?supplement.id:null,supplementNom:supplement?supplement.nom:null,supplementPrix:supplement?supplement.prix:null,
     toppingId:topping?topping.id:null,toppingNom:topping?topping.nom:null,toppingPrix:topping?topping.prix:null,
     qty:1,cartKey
   });
@@ -1586,59 +1684,62 @@ function posUpdateCartBar(){
   const bar=document.getElementById('pos-cart-bar');
   if(!bar)return;
   const totalItems=posCart.reduce((s,i)=>s+i.qty,0);
-  const totalPrice=posCart.reduce((s,i)=>s+i.qty*(i.prixUnit+(i.toppingPrix||0)),0);
+  const totalPrice=posCart.reduce((s,i)=>s+i.qty*(i.prixUnit+(i.supplementPrix||0)+(i.toppingPrix||0)),0);
   if(totalItems===0){
     bar.innerHTML='<div style="text-align:center;color:var(--text3);font-size:12px;padding:4px 0;">Panier vide — sélectionne un produit</div>';
   } else {
     bar.innerHTML=`<div style="display:flex;gap:8px;">
-      <button class="btn btn-secondary" style="flex:1;" onclick="posShowCart()">🛒 ${totalItems} article${totalItems>1?'s':''} — ${fmtDH(totalPrice)}</button>
-      <button class="btn btn-primary" style="flex:1;" onclick="saveVente()">✅ Valider</button>
+      <button class="btn btn-secondary" style="flex:1;font-size:13px;" onclick="posShowCart()">🛒 ${totalItems} article${totalItems>1?'s':''} — ${fmtDH(totalPrice)}</button>
+      <button class="btn btn-primary" style="flex:1;font-size:13px;" onclick="saveVente()">✅ Valider</button>
     </div>`;
   }
 }
 
 window.posShowCart=function(){
-  document.getElementById('pos-breadcrumb').innerHTML=`<button class="pos-back-btn" onclick="posRenderCategories()">← Continuer</button><span class="pos-step-label">Mon panier</span>`;
+  const backFn=posCurrentCat?`posRenderProducts('${posCurrentCat.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')` :'posRenderCategories()';
+  document.getElementById('pos-breadcrumb').innerHTML=`<button class="pos-back-btn" onclick="${backFn}">← Continuer mes achats</button><span class="pos-step-label">Mon panier</span>`;
   if(posCart.length===0){document.getElementById('pos-content').innerHTML='<div style="text-align:center;color:var(--text3);padding:30px 0;">Panier vide</div>';return;}
-  const total=posCart.reduce((s,i)=>s+i.qty*(i.prixUnit+(i.toppingPrix||0)),0);
+  const total=posCart.reduce((s,i)=>s+i.qty*(i.prixUnit+(i.supplementPrix||0)+(i.toppingPrix||0)),0);
   document.getElementById('pos-content').innerHTML=`
     ${posCart.map((item,idx)=>`<div class="pos-cart-item">
       ${item.image?`<img src="${item.image}" class="pos-cart-thumb">`:`<div class="pos-cart-thumb-placeholder">🍽</div>`}
       <div style="flex:1;min-width:0;">
         <div style="font-size:13px;font-weight:600;">${item.recetteNom}</div>
-        ${item.toppingNom?`<div style="font-size:11px;color:var(--blue);">+ ${item.toppingNom}</div>`:''}
-        <div style="font-size:12px;color:var(--text3);">${fmtDH(item.prixUnit+(item.toppingPrix||0))} × ${item.qty} = ${fmtDH(item.qty*(item.prixUnit+(item.toppingPrix||0)))}</div>
+        ${item.supplementNom?`<div style="font-size:11px;color:var(--amber);">➕ ${item.supplementNom}</div>`:''}
+        ${item.toppingNom?`<div style="font-size:11px;color:var(--blue);">🧂 ${item.toppingNom}</div>`:''}
+        <div style="font-size:12px;color:var(--text3);">${fmtDH(item.prixUnit+(item.supplementPrix||0)+(item.toppingPrix||0))} × ${item.qty} = <strong>${fmtDH(item.qty*(item.prixUnit+(item.supplementPrix||0)+(item.toppingPrix||0)))}</strong></div>
       </div>
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
         <button class="qty-btn qty-btn-minus" onclick="posCartQty(${idx},-1)">−</button>
-        <span style="font-size:14px;font-weight:700;min-width:20px;text-align:center;">${item.qty}</span>
+        <span style="font-size:14px;font-weight:700;min-width:22px;text-align:center;">${item.qty}</span>
         <button class="qty-btn qty-btn-plus" onclick="posCartQty(${idx},1)">+</button>
       </div>
     </div>`).join('')}
-    <div style="padding-top:12px;display:flex;justify-content:space-between;font-size:15px;font-weight:700;">
+    <div style="padding-top:12px;display:flex;justify-content:space-between;font-size:15px;font-weight:700;border-top:1px solid var(--border);">
       <span>Total</span><span style="color:var(--accent);">${fmtDH(total)}</span>
     </div>`;
 };
 
 window.posCartQty=function(idx,delta){
+  if(!posCart[idx])return;
   posCart[idx].qty=Math.max(0,posCart[idx].qty+delta);
   if(posCart[idx].qty===0)posCart.splice(idx,1);
-  posUpdateCartBar();
-  window.posShowCart();
+  posUpdateCartBar();window.posShowCart();
 };
 
 window.saveVente=async function(){
   if(posCart.length===0){toast('Aucune vente saisie');return;}
   const now=new Date();let total=0;const entries=[];
   for(const item of posCart){
-    const totalPrix=item.prixUnit+(item.toppingPrix||0);
-    entries.push({recetteId:item.recetteId,recetteNom:item.recetteNom,qty:item.qty,prixUnit:totalPrix,toppingId:item.toppingId||null,toppingNom:item.toppingNom||null,toppingPrix:item.toppingPrix||null});
-    total+=item.qty*totalPrix;
-    await pushToFirebase('ventes',{recetteId:item.recetteId,recetteNom:item.recetteNom,qty:item.qty,prixUnit:totalPrix,toppingId:item.toppingId||null,toppingNom:item.toppingNom||null,toppingPrix:item.toppingPrix||null,date:now.toISOString()});
+    const totalPrix=item.prixUnit+(item.supplementPrix||0)+(item.toppingPrix||0);
+    const entry={recetteId:item.recetteId,recetteNom:item.recetteNom,qty:item.qty,prixUnit:totalPrix,
+      supplementId:item.supplementId||null,supplementNom:item.supplementNom||null,supplementPrix:item.supplementPrix||null,
+      toppingId:item.toppingId||null,toppingNom:item.toppingNom||null,toppingPrix:item.toppingPrix||null};
+    entries.push(entry);total+=item.qty*totalPrix;
+    await pushToFirebase('ventes',{...entry,date:now.toISOString()});
   }
   await pushToFirebase('historique',{type:'vente',date:now.toISOString(),entries,total});
-  posCart=[];
-  closeModal('modal-vente');
+  posCart=[];closeModal('modal-vente');
   toast(`✅ ${entries.length} produit${entries.length>1?'s':''} — ${fmtDH(total)}`);
 };
 
@@ -2104,7 +2205,7 @@ function renderFinance(){
       '<button onclick="setFinanceMargesFilter(\'produits\')" class="btn '+(financeMargesFilter==='produits'?'btn-primary':'btn-secondary')+'" style="flex:1;font-size:11px;">🧁 Produits</button>'+
       '<button onclick="setFinanceMargesFilter(\'toppings\')" class="btn '+(financeMargesFilter==='toppings'?'btn-primary':'btn-secondary')+'" style="flex:1;font-size:11px;">🧂 Toppings/Suppléments</button>'+
     '</div>';
-    var recettesFiltrees=financeMargesFilter==='all'?DB.recettes:financeMargesFilter==='toppings'?DB.recettes.filter(function(r){return isRecetteTopping(r);}):DB.recettes.filter(function(r){return !isRecetteTopping(r);});
+    var recettesFiltrees=financeMargesFilter==='all'?DB.recettes:financeMargesFilter==='toppings'?DB.recettes.filter(function(r){return isRecetteAddon(r);}):DB.recettes.filter(function(r){return !isRecetteAddon(r);});
     var catsMarges=['all',...new Set(recettesFiltrees.map(function(r){return r.cat||'Sans catégorie';}))].sort(function(a,b){return a==='all'?-1:b==='all'?1:a>b?1:-1;});
     if(!catsMarges.includes(financeMargesCat))financeMargesCat='all';
     var recettesParCat=financeMargesCat==='all'?recettesFiltrees:recettesFiltrees.filter(function(r){return (r.cat||'Sans catégorie')===financeMargesCat;});
@@ -2121,7 +2222,7 @@ function renderFinance(){
           var color=pct>=50?'var(--accent)':pct>=30?'var(--amber)':'var(--danger)';
           var bgColor=pct>=50?'var(--accent-light)':pct>=30?'var(--amber-light)':'var(--danger-light)';
           var badgeCls=pct>=50?'badge-green':pct>=30?'badge-amber':'badge-red';
-          var toppingBadge=isRecetteTopping(r)?'<span style="background:var(--blue-light);color:var(--blue);font-size:9px;padding:1px 5px;border-radius:4px;margin-left:4px;">Topping</span>':'';
+          var toppingBadge=isRecetteTopping(r)?'<span style="background:var(--blue-light);color:var(--blue);font-size:9px;padding:1px 5px;border-radius:4px;margin-left:4px;">Topping</span>':isRecetteSupplément(r)?'<span style="background:var(--amber-light);color:var(--amber);font-size:9px;padding:1px 5px;border-radius:4px;margin-left:4px;">Supplément</span>':'';
           return '<div class="card"><div class="card-body">'+
             '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">'+
               '<div style="display:flex;align-items:center;gap:8px;">'+
