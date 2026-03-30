@@ -1,5 +1,5 @@
 // ===== Bubblily Service Worker =====
-const CACHE_NAME = 'bubblily-v1';
+const CACHE_NAME = 'bubblily-v2';
 
 // Fichiers à mettre en cache pour le mode hors-ligne
 const ASSETS_TO_CACHE = [
