@@ -1566,6 +1566,8 @@ function posRenderCategories(){
     }).join('')
   }</div>`;
 }
+// Exposer au scope global pour les onclick dans innerHTML (module scope)
+window.posRenderCategories=posRenderCategories;
 
 window.posSelectCategory=function(cat){posCurrentCat=cat;posRenderProducts(cat);};
 
@@ -1588,14 +1590,15 @@ function posRenderProducts(cat){
     }).join('')
   }</div>`;
 }
+// Exposer au scope global pour les onclick dans innerHTML (module scope)
+window.posRenderProducts=posRenderProducts;
 
 window.posSelectProduct=function(id){
   const r=DB.recettes.find(x=>x.id===id);
   if(!r)return;
-  const supplements=DB.recettes.filter(x=>isRecetteSupplément(x));
-  const toppings=DB.recettes.filter(x=>isRecetteTopping(x));
-  const needsSuppl=r.supplementEligible&&supplements.length>0;
-  const needsTopping=r.toppingEligible&&toppings.length>0;
+  // Afficher l'étape si le produit est éligible, qu'il existe ou non des add-ons configurés
+  const needsSuppl=!!(r.supplementEligible);
+  const needsTopping=!!(r.toppingEligible);
   if(needsSuppl){posRenderSupplements(r,needsTopping);}
   else if(needsTopping){posRenderToppings(r,null);}
   else{posAddItemToCart(r,null,null);toast(`✅ ${r.nom} ajouté`);posRenderProducts(posCurrentCat);posUpdateCartBar();}
