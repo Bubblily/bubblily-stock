@@ -599,7 +599,13 @@ window.doLogin=async function(){
   btn.innerHTML='<span class="spinner"></span>';btn.disabled=true;
   try{await signInWithEmailAndPassword(auth,email,pwd);}
   catch(e){
-    errEl.textContent='Email ou mot de passe incorrect.';
+    if(e.code==='auth/unauthorized-domain'){
+      errEl.textContent='⚠️ Domaine non autorisé dans Firebase Console. Ajoutez bubblily.github.io dans Authentication → Settings → Authorized domains.';
+    } else if(e.code==='auth/wrong-password'||e.code==='auth/invalid-credential'||e.code==='auth/user-not-found'){
+      errEl.textContent='Email ou mot de passe incorrect.';
+    } else {
+      errEl.textContent='Erreur : '+(e.code||e.message);
+    }
     errEl.style.display='block';
     btn.innerHTML='Se connecter';btn.disabled=false;
   }
