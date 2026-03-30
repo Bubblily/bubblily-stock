@@ -544,7 +544,7 @@ window.addEventListener('unhandledrejection',function(e){
 </script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { initializeAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, browserSessionPersistence, browserLocalPersistence, indexedDBLocalPersistence } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getDatabase, ref, set, get, onValue, update, push, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 const firebaseConfig = {
@@ -558,8 +558,23 @@ const firebaseConfig = {
 };
 const MAITRE_EMAIL = "abehrouz.nasreddine@gmail.com";
 const firebaseApp = initializeApp(firebaseConfig);
-const auth = getAuth(firebaseApp);
+// Initialiser Auth avec la liste de persistances dans l'ordre de préférence :
+// 1. IndexedDB (local, meilleur) 2. sessionStorage (fallback) 3. mémoire (dernier recours)
+const auth = initializeAuth(firebaseApp, {
+  persistence: [indexedDBLocalPersistence, browserSessionPersistence, browserLocalPersistence]
+});
 const db = getDatabase(firebaseApp);
+
+// Fallback : afficher login si onAuthStateChanged ne répond pas dans 10s
+let authResolved=false;
+const authTimeout=setTimeout(()=>{
+  if(!authResolved){
+    document.getElementById('loading-screen').style.display='none';
+    document.getElementById('login-screen').style.display='flex';
+    document.getElementById('login-btn').innerHTML='Se connecter';
+    document.getElementById('login-btn').disabled=false;
+  }
+},10000);
 
 // ==================== HELPERS ====================
 function fmtDH(val){return Number(val).toFixed(2)+' DH';}
@@ -593,6 +608,8 @@ window.doLogout=async function(){if(unsubscribe)unsubscribe();await signOut(auth
 document.getElementById('login-pwd').addEventListener('keydown',e=>{if(e.key==='Enter')window.doLogin();});
 
 onAuthStateChanged(auth,user=>{
+  authResolved=true;
+  clearTimeout(authTimeout);
   document.getElementById('loading-screen').style.display='none';
   if(user){
     currentUser=user;
