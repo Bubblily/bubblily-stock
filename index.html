@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Bubblily — Gestion Stock</title>
 <!-- iOS plein écran -->
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -127,6 +127,11 @@ body{font-family:-apple-system,'SF Pro Text','Helvetica Neue',sans-serif;backgro
 .qty-btn-minus{background:var(--surface2);color:var(--text);}
 .qty-btn-plus{background:var(--accent);color:#fff;}
 .qty-val{font-size:18px;font-weight:700;min-width:28px;text-align:center;}
+/* ===== MULTI-SELECT SUPPLÉMENTS / TOPPINGS ===== */
+.supp-item{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:var(--radius-sm);border:1.5px solid var(--border);margin-bottom:8px;cursor:pointer;transition:border-color .15s,background .15s;background:var(--surface);user-select:none;}
+.supp-item.selected{border-color:var(--accent);background:var(--accent-light);}
+.supp-check{width:28px;height:28px;border-radius:50%;background:var(--accent);color:white;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0;opacity:0;transition:opacity .15s;}
+.supp-item.selected .supp-check{opacity:1;}
 /* ===== POS CAISSE ===== */
 .pos-modal{display:flex;flex-direction:column;max-height:95vh;padding:14px 16px;}
 #pos-content{overflow-y:auto;flex:1;min-height:0;padding-bottom:4px;}
@@ -230,151 +235,15 @@ body{font-family:-apple-system,'SF Pro Text','Helvetica Neue',sans-serif;backgro
   .produit-grid{grid-template-columns:repeat(4,1fr);}
 }
 
+/* ── Fermeture de caisse ── */
+.fermeture-ecart-ok{border-color:var(--green)!important;background:var(--green-light);}
+.fermeture-ecart-warn{border-color:var(--amber)!important;background:var(--amber-light);}
+.fermeture-ecart-danger{border-color:var(--danger)!important;background:#fff0f0;}
+.fermeture-hist-card{border-left:3px solid var(--border);padding-left:10px;margin-bottom:8px;}
+.fermeture-hist-card.ok{border-left-color:var(--green);}
+.fermeture-hist-card.warn{border-left-color:var(--amber);}
+.fermeture-hist-card.danger{border-left-color:var(--danger);}
 
-/* ── POS add-on multi-select (suppléments & toppings) ── */
-.pos-addon-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  border: 1.5px solid var(--border);
-  margin-bottom: 8px;
-  cursor: pointer;
-  transition: border-color .15s, background .15s;
-  background: var(--surface);
-  user-select: none;
-}
-.pos-addon-item.selected {
-  border-color: var(--accent);
-  background: var(--accent-light);
-}
-.pos-addon-check {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: var(--accent);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  font-weight: 700;
-  flex-shrink: 0;
-  opacity: 0;
-  transition: opacity .15s;
-}
-.pos-addon-item.selected .pos-addon-check {
-  opacity: 1;
-}
-
-/* ═══════════════════════════════════════════════════
-   TABLETTE — PORTRAIT  (≥ 768 px, portrait)
-   Pleine largeur, 4 colonnes, paddings généreux
-═══════════════════════════════════════════════════ */
-@media (min-width: 768px) and (orientation: portrait) {
-  body          { max-width: 100%; font-size: 15px; }
-  .modal        { max-width: 860px; margin-left: auto; margin-right: auto; }
-  .content      { padding: 16px 28px; }
-  .card-body    { padding: 16px 20px; }
-  .produit-grid { grid-template-columns: repeat(4, 1fr); gap: 14px; }
-  .pos-cat-grid { grid-template-columns: repeat(4, 1fr); gap: 14px; }
-  .produit-card { min-height: 170px; padding: 14px; }
-  .produit-img  { width: 72px; height: 72px; }
-  .produit-nom  { font-size: 15px; }
-  .btn          { font-size: 15px; padding: 12px 18px; }
-  .input        { font-size: 15px; padding: 10px 12px; }
-  .header-title { font-size: 19px; }
-  .pos-cat-card { padding: 20px 14px 16px; }
-  .pos-cat-name { font-size: 15px; }
-  /* caisse plein écran sur tablette portrait */
-  #modal-vente .modal     { max-width: 100%; }
-  #modal-vente .pos-modal { padding: env(safe-area-inset-top, 12px) 24px 16px; }
-}
-
-/* ═══════════════════════════════════════════════════
-   TABLETTE — PAYSAGE  (≥ 768 px, landscape, h ≥ 500 px)
-   Split-view : produits à gauche, panier à droite
-═══════════════════════════════════════════════════ */
-@media (min-width: 768px) and (orientation: landscape) and (min-height: 500px) {
-  body          { max-width: 100%; font-size: 15px; }
-  .modal        { max-width: 100%; }
-  .content      { padding: 14px 28px; }
-  .card-body    { padding: 14px 18px; }
-  .produit-grid { grid-template-columns: repeat(5, 1fr); gap: 12px; }
-  .pos-cat-grid { grid-template-columns: repeat(5, 1fr); gap: 12px; }
-  .produit-card { min-height: 150px; }
-  .btn          { font-size: 15px; padding: 11px 16px; }
-
-  /* ── Caisse split-view ─────────────────────────────
-     Colonne gauche (1fr) : breadcrumb + contenu produits
-     Colonne droite (300px) : barre panier toujours visible
-  ──────────────────────────────────────────────────── */
-  #modal-vente .modal {
-    max-width: 100%;
-  }
-  #modal-vente .pos-modal {
-    display: grid;
-    grid-template-columns: 1fr 300px;
-    /* rangées : handle | header | date | breadcrumb | contenu (1fr) */
-    grid-template-rows: auto auto auto auto 1fr;
-    column-gap: 20px;
-    overflow: hidden;
-    padding: env(safe-area-inset-top, 10px) 20px 12px env(safe-area-inset-left, 20px);
-  }
-
-  /* Tous les enfants → colonne 1 par défaut */
-  #modal-vente .pos-modal > * { grid-column: 1; }
-
-  /* Contenu scrollable */
-  #modal-vente #pos-content {
-    grid-column: 1;
-    overflow-y: auto;
-    min-height: 0;
-  }
-
-  /* Breadcrumb ne doit pas scroller */
-  #modal-vente #pos-breadcrumb { grid-column: 1; flex-shrink: 0; }
-
-  /* Barre panier → colonne 2, toutes les rangées */
-  #modal-vente #pos-cart-bar {
-    grid-column: 2 !important;
-    grid-row: 1 / -1;
-    border-top: none;
-    border-left: 0.5px solid var(--border);
-    padding: 0 0 0 20px;
-    margin-top: 0;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-end;
-    gap: 8px;
-  }
-
-  /* Titre "Panier" dans la colonne droite */
-  #modal-vente #pos-cart-bar::before {
-    content: "🛒 Panier";
-    display: block;
-    font-size: 14px;
-    font-weight: 700;
-    color: var(--text3);
-    text-transform: uppercase;
-    letter-spacing: .5px;
-    padding-top: 4px;
-    flex-shrink: 0;
-    margin-bottom: auto;
-  }
-}
-
-/* ═══════════════════════════════════════════════════
-   GRAND ÉCRAN TABLETTE  (≥ 1024 px) — ajustements
-═══════════════════════════════════════════════════ */
-@media (min-width: 1024px) {
-  /* Colonne panier un peu plus large */
-  #modal-vente .pos-modal { grid-template-columns: 1fr 340px; }
-  .produit-grid { grid-template-columns: repeat(5, 1fr); }
-  .pos-cat-grid { grid-template-columns: repeat(5, 1fr); }
-}
 </style>
 </head>
 <body>
@@ -436,7 +305,12 @@ body{font-family:-apple-system,'SF Pro Text','Helvetica Neue',sans-serif;backgro
 
 <!-- CAISSE -->
 <div class="screen" id="screen-caisse">
-  <div class="header"><div class="header-title">🧾 Caisse</div><div class="header-sub">Ventes & historique</div></div>
+  <div class="header">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <div><div class="header-title">🧾 Caisse</div><div class="header-sub">Ventes & historique</div></div>
+      <button class="btn btn-sm btn-danger" onclick="openModal('modal-fermeture')" style="font-size:12px;">🔒 Fermeture</button>
+    </div>
+  </div>
   <div class="content" id="caisse-content"></div>
   <div class="tabs" id="tabs-caisse"></div>
 </div>
@@ -481,6 +355,52 @@ body{font-family:-apple-system,'SF Pro Text','Helvetica Neue',sans-serif;backgro
 </div>
 
 <!-- MODALS -->
+
+<!-- MODAL FERMETURE DE CAISSE -->
+<div class="modal-overlay" id="modal-fermeture">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="card-title" style="margin-bottom:4px;">🔒 Fermeture de caisse</div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:16px;" id="fermeture-date-label"></div>
+
+    <!-- Résumé ventes du jour -->
+    <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:12px;margin-bottom:14px;">
+      <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Ventes enregistrées aujourd'hui</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:13px;color:var(--text2);">Total théorique caisse</span>
+        <span style="font-size:18px;font-weight:700;color:var(--accent);" id="fermeture-total-theorique">0,00 DH</span>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:4px;" id="fermeture-nb-ventes"></div>
+    </div>
+
+    <!-- Montant compté physiquement -->
+    <div class="label">💵 Montant compté en caisse (DH)</div>
+    <div style="position:relative;margin-bottom:12px;">
+      <input class="input" id="fermeture-montant" type="number" placeholder="0.00" step="0.01" min="0"
+             style="padding-right:36px;font-size:18px;font-weight:600;" oninput="updateFermetureEcart()">
+      <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--text3);font-weight:600;">DH</span>
+    </div>
+
+    <!-- Écart calculé -->
+    <div style="border-radius:var(--radius-sm);padding:12px;margin-bottom:14px;border:1.5px solid var(--border);" id="fermeture-ecart-box">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:13px;font-weight:600;">Écart</span>
+        <span style="font-size:18px;font-weight:700;" id="fermeture-ecart-val">—</span>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:3px;" id="fermeture-ecart-hint">Saisissez le montant compté pour calculer l'écart</div>
+    </div>
+
+    <!-- Note optionnelle -->
+    <div class="label">📝 Note (optionnel)</div>
+    <input class="input" id="fermeture-note" placeholder="Ex : billet abîmé, erreur de rendu..." style="margin-bottom:16px;">
+
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-secondary" onclick="closeModal('modal-fermeture')">Annuler</button>
+      <button class="btn btn-danger" onclick="saveFermeture()">🔒 Valider la fermeture</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-recette">
   <div class="modal">
     <div class="modal-handle"></div>
@@ -815,7 +735,7 @@ const MOIS_SHORT=['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Aoû','Sep','Oct
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400);}
 
 // ==================== STATE ====================
-let DB={recettes:[],matieres:{},stock:{},stockPrev:{},stockPrevDate:null,stockInitDate:null,inventaires:[],historique:[],ventes:[],prixMatieres:{},seuilsCommande:{},chargesFixes:[],chargesVariables:[],chargesExceptionnelles:[],sauvegardes:[],dateLancement:null,pertTheorique:0,commandes:[]};
+let DB={recettes:[],matieres:{},stock:{},stockPrev:{},stockPrevDate:null,stockInitDate:null,inventaires:[],historique:[],ventes:[],prixMatieres:{},seuilsCommande:{},chargesFixes:[],chargesVariables:[],chargesExceptionnelles:[],sauvegardes:[],dateLancement:null,pertTheorique:0,commandes:[],fermetures:[]};
 let currentUser=null, userRole=null, unsubscribe=null;
 
 // ==================== AUTH ====================
@@ -915,6 +835,7 @@ function startFirebaseSync(){
     DB.pertTheorique=data.pertTheorique||0;
     DB.sauvegardes=data.sauvegardes?Object.values(data.sauvegardes).sort((a,b)=>b.date>a.date?1:-1):[];
     DB.commandes=data.commandes?Object.entries(data.commandes).sort((a,b)=>a[1].date>b[1].date?1:-1).map(([k,v])=>({...v,_key:k})):[];
+    DB.fermetures=data.fermetures?Object.values(data.fermetures).sort((a,b)=>b.date>a.date?1:-1):[];
     // fournisseursInfo : indexé par nom pour accès rapide
     const rawFI=data.fournisseursInfo||{};
     DB.fournisseursInfo={};
@@ -1008,6 +929,7 @@ window.openModal=function(id){
   if(id==='modal-vente')buildVenteForm();
   if(id==='modal-commande')buildCommandeForm();
   if(id==='modal-ingredient-maison')buildIngredientMaisonForm();
+  if(id==='modal-fermeture')openModal_fermeture_setup();
   if(id==='modal-recette'&&!editingRecetteIdx){
     document.getElementById('modal-recette-title').textContent='Nouvelle recette';
     ['r-cat','r-nom','r-prix','r-image-url'].forEach(x=>document.getElementById(x).value='');
@@ -1947,11 +1869,8 @@ let calMonth=new Date().getMonth(),calYear=new Date().getFullYear(),calSelectedD
 const tmpVente={};
 
 // ==================== POS CAISSE ====================
-let posCart=[]; // [{recetteId,recetteNom,prixUnit,image,supplements:[{id,nom,prix}],toppings:[{id,nom,prix}],qty,cartKey}]
+let posCart=[]; // [{recetteId,recetteNom,prixUnit,image,supplementId,supplementNom,supplementPrix,toppingId,toppingNom,toppingPrix,qty,cartKey}]
 let posCurrentCat=null;
-let posSelectedSupplements=[]; // sélection en cours (étape suppléments)
-let posSelectedToppings=[];    // sélection en cours (étape toppings)
-let posCurrentSupplements=[];  // suppléments validés, transmis à l'étape toppings
 
 const POS_COLORS=[
   {bg:'var(--accent-light)',border:'var(--accent)',text:'var(--accent)'},
@@ -1970,10 +1889,8 @@ function buildVenteForm(){
   posUpdateCartBar();
 }
 
-// ─── Étape 1 : Catégories ────────────────────────────────────────────────────
 function posRenderCategories(){
-  // Masquer add-ons (toppings/suppléments) ET "ingrédient maison" de la caisse
-  const produitsReg=DB.recettes.filter(r=>!isRecetteAddon(r)&&(r.cat||'').toLowerCase().trim()!=='ingrédient maison');
+  const produitsReg=DB.recettes.filter(r=>!isRecetteAddon(r)&&!isIngredientMaison(r));
   document.getElementById('pos-breadcrumb').innerHTML='<span class="pos-step-label">Choisir une catégorie</span>';
   if(produitsReg.length===0){
     document.getElementById('pos-content').innerHTML='<div style="color:var(--text3);text-align:center;padding:30px 0;">Aucun produit disponible</div>';
@@ -1998,13 +1915,8 @@ window.posSelectCategory=function(cat){
   posRenderProducts(cat);
 };
 
-// ─── Étape 2 : Produits ──────────────────────────────────────────────────────
 function posRenderProducts(cat){
-  const prods=DB.recettes.filter(r=>
-    !isRecetteAddon(r)&&
-    (r.cat||'').toLowerCase().trim()!=='ingrédient maison'&&
-    (r.cat||'Sans catégorie')===cat
-  ).sort((a,b)=>a.nom>b.nom?1:-1);
+  const prods=DB.recettes.filter(r=>!isRecetteAddon(r)&&!isIngredientMaison(r)&&(r.cat||'Sans catégorie')===cat).sort((a,b)=>a.nom>b.nom?1:-1);
   const esc=cat.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
   document.getElementById('pos-breadcrumb').innerHTML=`<button class="pos-back-btn" onclick="posRenderCategories()">← Catégories</button><span class="pos-step-label">${cat}</span>`;
   document.getElementById('pos-content').innerHTML=`<div class="produit-grid">${
@@ -2022,182 +1934,155 @@ function posRenderProducts(cat){
     }).join('')
   }</div>`;
 }
+// Exposer au scope global pour les onclick dans innerHTML (module scope)
 window.posRenderCategories=posRenderCategories;
 window.posRenderProducts=posRenderProducts;
+
+// ── État multi-sélection (partagé entre l'étape suppléments et toppings) ───
+let multiSelectState={product:null,selectedSupplementIds:[],selectedToppingIds:[],step:null};
 
 window.posSelectProduct=function(id){
   const r=DB.recettes.find(x=>x.id===id);
   if(!r)return;
-  const needsSuppl=!!(r.supplementEligible);
-  const needsTopping=!!(r.toppingEligible);
-  if(needsSuppl){
-    posRenderSupplements(r,needsTopping);
-  } else if(needsTopping){
-    posRenderToppings(r,[]);
+  multiSelectState={product:r,selectedSupplementIds:[],selectedToppingIds:[],step:null};
+  if(r.supplementEligible){
+    posRenderSupplementsMulti(r);
+  } else if(r.toppingEligible){
+    posRenderToppingsMulti(r);
   } else {
-    posAddItemToCart(r,[],[]);
+    posAddItemToCartMulti(r,[],[]);
     toast(`✅ ${r.nom} ajouté`);
     posRenderProducts(posCurrentCat);
     posUpdateCartBar();
   }
 };
 
-// ─── Étape 3 : Suppléments (multi-sélection) ────────────────────────────────
-function posRenderSupplements(product,needsToppingAfter){
+// ── ÉTAPE 1 : Suppléments — sélection multiple illimitée ────────────────────
+function posRenderSupplementsMulti(product){
+  multiSelectState.step='supplements';
+  multiSelectState.selectedSupplementIds=[];
   const supplements=DB.recettes.filter(r=>isRecetteSupplément(r));
-  posSelectedSupplements=[];
   const esc=posCurrentCat.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
   document.getElementById('pos-breadcrumb').innerHTML=`<button class="pos-back-btn" onclick="posRenderProducts('${esc}')">← ${posCurrentCat}</button><span class="pos-step-label">${product.nom} — Suppléments</span>`;
+  const suppHtml=supplements.length===0
+    ?'<div style="color:var(--text3);text-align:center;padding:20px 0;">Aucun supplément disponible</div>'
+    :supplements.map(s=>`<div class="supp-item" id="supp-item-${s.id}" onclick="toggleMultiSelect('supplements',${s.id})">
+      <div style="display:flex;align-items:center;gap:10px;flex:1;">
+        ${s.image?`<img src="${s.image}" style="width:44px;height:44px;border-radius:8px;object-fit:cover;">`:'<div style="font-size:28px;line-height:1;">➕</div>'}
+        <div>
+          <div style="font-size:14px;font-weight:600;">${s.nom}</div>
+          <div style="font-size:12px;color:var(--amber);font-weight:600;">+ ${fmtDH(s.prix)}</div>
+        </div>
+      </div>
+      <div class="supp-check" id="supp-check-${s.id}">✓</div>
+    </div>`).join('');
   document.getElementById('pos-content').innerHTML=`
-    <div style="font-size:13px;color:var(--text3);margin-bottom:10px;text-align:center;">
-      Suppléments pour <strong>${product.nom}</strong>
-      <span style="font-size:11px;opacity:.6;"> (sélection multiple)</span>
-    </div>
-    <div id="pos-supp-list">
-      ${supplements.length===0
-        ?'<div style="color:var(--text3);text-align:center;padding:16px 0;">Aucun supplément configuré</div>'
-        :supplements.map(s=>`
-          <div class="pos-addon-item" id="possupp-item-${s.id}" onclick="posToggleSupplément(${s.id})">
-            <div style="display:flex;align-items:center;gap:10px;flex:1;">
-              ${s.image?`<img src="${s.image}" style="width:40px;height:40px;border-radius:8px;object-fit:cover;">`:'<div style="font-size:24px;width:40px;text-align:center;">➕</div>'}
-              <div>
-                <div style="font-size:14px;font-weight:500;">${s.nom}</div>
-                <div style="font-size:12px;color:var(--amber);font-weight:600;">+ ${fmtDH(s.prix)}</div>
-              </div>
-            </div>
-            <div class="pos-addon-check" id="possupp-check-${s.id}">✓</div>
-          </div>`).join('')}
-    </div>
-    <div id="pos-supp-recap" style="font-size:13px;font-weight:600;color:var(--amber);text-align:right;margin:8px 0 4px;min-height:18px;"></div>
-    <div style="display:flex;gap:8px;margin-top:8px;">
-      <button class="btn btn-secondary" onclick="posSkipSupplément(${product.id},${!!needsToppingAfter})">Sans supplément</button>
-      <button class="btn btn-primary" onclick="posValidateSupplément(${product.id},${!!needsToppingAfter})">Confirmer →</button>
+    <div style="font-size:13px;color:var(--text3);margin-bottom:12px;text-align:center;">Suppléments pour <strong>${product.nom}</strong> — cochez tout ce que le client veut</div>
+    ${suppHtml}
+    <div style="padding-top:12px;border-top:0.5px solid var(--border);display:flex;gap:8px;margin-top:4px;">
+      <button class="btn btn-secondary" style="flex:1;" onclick="confirmMultiSelect('supplements',false)">Sans supplément</button>
+      <button class="btn btn-primary" style="flex:1;" id="btn-confirm-suppl" onclick="confirmMultiSelect('supplements',true)">Suivant →</button>
     </div>`;
 }
+window.posRenderSupplementsMulti=posRenderSupplementsMulti;
 
-window.posToggleSupplément=function(suppId){
-  const r=DB.recettes.find(x=>x.id===suppId);
-  if(!r)return;
-  const idx=posSelectedSupplements.findIndex(x=>x.id===suppId);
-  if(idx===-1){
-    posSelectedSupplements.push({id:r.id,nom:r.nom,prix:r.prix});
-  } else {
-    posSelectedSupplements.splice(idx,1);
-  }
-  const isNowSelected=(idx===-1);
-  document.getElementById('possupp-item-'+suppId)?.classList.toggle('selected',isNowSelected);
-  const recap=document.getElementById('pos-supp-recap');
-  if(recap){
-    const total=posSelectedSupplements.reduce((s,x)=>s+x.prix,0);
-    recap.textContent=posSelectedSupplements.length>0
-      ?`${posSelectedSupplements.length} sélectionné(s) — +${fmtDH(total)}`:'';
-  }
-};
-
-window.posSkipSupplément=function(productId,needsToppingAfter){
-  posSelectedSupplements=[];
-  posValidateSupplément(productId,needsToppingAfter);
-};
-
-window.posValidateSupplément=function(productId,needsToppingAfter){
-  const product=DB.recettes.find(r=>r.id===productId);
-  if(!product)return;
+// ── ÉTAPE 2 : Toppings — sélection multiple illimitée ───────────────────────
+function posRenderToppingsMulti(product){
+  multiSelectState.step='toppings';
+  multiSelectState.selectedToppingIds=[];
   const toppings=DB.recettes.filter(r=>isRecetteTopping(r));
-  const supps=[...posSelectedSupplements];
-  if(needsToppingAfter&&toppings.length>0){
-    posRenderToppings(product,supps);
-  } else {
-    posAddItemToCart(product,supps,[]);
-    const label=supps.length>0?`${product.nom} (${supps.map(s=>s.nom).join(', ')})`:product.nom;
-    toast(`✅ ${label} ajouté`);
-    posRenderProducts(posCurrentCat);
-    posUpdateCartBar();
-  }
-};
-
-// ─── Étape 4 : Toppings (multi-sélection) ───────────────────────────────────
-function posRenderToppings(product,supplements){
-  const toppings=DB.recettes.filter(r=>isRecetteTopping(r));
-  posCurrentSupplements=[...supplements];
-  posSelectedToppings=[];
   const esc=posCurrentCat.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-  const suppLabel=supplements.length>0?` + ${supplements.map(s=>s.nom).join(', ')}`:'';
-  document.getElementById('pos-breadcrumb').innerHTML=`<button class="pos-back-btn" onclick="posRenderProducts('${esc}')">← ${posCurrentCat}</button><span class="pos-step-label">${product.nom}${suppLabel} — Toppings</span>`;
+  const suppCount=multiSelectState.selectedSupplementIds.length;
+  const suppLabel=suppCount>0?multiSelectState.selectedSupplementIds.map(id=>DB.recettes.find(r=>r.id===id)?.nom).filter(Boolean).join(', '):'';
+  document.getElementById('pos-breadcrumb').innerHTML=`<button class="pos-back-btn" onclick="posRenderProducts('${esc}')">← ${posCurrentCat}</button><span class="pos-step-label">${product.nom} — Toppings</span>`;
+  const topHtml=toppings.length===0
+    ?'<div style="color:var(--text3);text-align:center;padding:20px 0;">Aucun topping disponible</div>'
+    :toppings.map(t=>`<div class="supp-item" id="supp-item-${t.id}" onclick="toggleMultiSelect('toppings',${t.id})">
+      <div style="display:flex;align-items:center;gap:10px;flex:1;">
+        ${t.image?`<img src="${t.image}" style="width:44px;height:44px;border-radius:8px;object-fit:cover;">`:'<div style="font-size:28px;line-height:1;">🧂</div>'}
+        <div>
+          <div style="font-size:14px;font-weight:600;">${t.nom}</div>
+          <div style="font-size:12px;color:var(--blue);font-weight:600;">+ ${fmtDH(t.prix)}</div>
+        </div>
+      </div>
+      <div class="supp-check" id="supp-check-${t.id}">✓</div>
+    </div>`).join('');
   document.getElementById('pos-content').innerHTML=`
-    <div style="font-size:13px;color:var(--text3);margin-bottom:10px;text-align:center;">
-      Toppings pour <strong>${product.nom}</strong>
-      <span style="font-size:11px;opacity:.6;"> (sélection multiple)</span>
+    <div style="font-size:13px;color:var(--text3);margin-bottom:12px;text-align:center;">
+      Toppings pour <strong>${product.nom}</strong>${suppLabel?` <span style="color:var(--amber);">(${suppLabel})</span>`:''}
     </div>
-    <div id="pos-top-list">
-      ${toppings.length===0
-        ?'<div style="color:var(--text3);text-align:center;padding:16px 0;">Aucun topping configuré</div>'
-        :toppings.map(t=>`
-          <div class="pos-addon-item" id="postop-item-${t.id}" onclick="posToggleTopping(${t.id})">
-            <div style="display:flex;align-items:center;gap:10px;flex:1;">
-              ${t.image?`<img src="${t.image}" style="width:40px;height:40px;border-radius:8px;object-fit:cover;">`:'<div style="font-size:24px;width:40px;text-align:center;">🧂</div>'}
-              <div>
-                <div style="font-size:14px;font-weight:500;">${t.nom}</div>
-                <div style="font-size:12px;color:var(--blue);font-weight:600;">+ ${fmtDH(t.prix)}</div>
-              </div>
-            </div>
-            <div class="pos-addon-check" id="postop-check-${t.id}">✓</div>
-          </div>`).join('')}
-    </div>
-    <div id="pos-top-recap" style="font-size:13px;font-weight:600;color:var(--blue);text-align:right;margin:8px 0 4px;min-height:18px;"></div>
-    <div style="display:flex;gap:8px;margin-top:8px;">
-      <button class="btn btn-secondary" onclick="posSkipTopping(${product.id})">Sans topping</button>
-      <button class="btn btn-primary" onclick="posValidateTopping(${product.id})">Ajouter au panier ✅</button>
+    ${topHtml}
+    <div style="padding-top:12px;border-top:0.5px solid var(--border);display:flex;gap:8px;margin-top:4px;">
+      <button class="btn btn-secondary" style="flex:1;" onclick="confirmMultiSelect('toppings',false)">Sans topping</button>
+      <button class="btn btn-primary" style="flex:1;" id="btn-confirm-topping" onclick="confirmMultiSelect('toppings',true)">✅ Ajouter au panier</button>
     </div>`;
 }
+window.posRenderToppingsMulti=posRenderToppingsMulti;
 
-window.posToggleTopping=function(topId){
-  const r=DB.recettes.find(x=>x.id===topId);
-  if(!r)return;
-  const idx=posSelectedToppings.findIndex(x=>x.id===topId);
-  if(idx===-1){
-    posSelectedToppings.push({id:r.id,nom:r.nom,prix:r.prix});
-  } else {
-    posSelectedToppings.splice(idx,1);
-  }
-  const isNowSelected=(idx===-1);
-  document.getElementById('postop-item-'+topId)?.classList.toggle('selected',isNowSelected);
-  const recap=document.getElementById('pos-top-recap');
-  if(recap){
-    const total=posSelectedToppings.reduce((s,x)=>s+x.prix,0);
-    recap.textContent=posSelectedToppings.length>0
-      ?`${posSelectedToppings.length} sélectionné(s) — +${fmtDH(total)}`:'';
-  }
+// ── Toggle d'un item dans la sélection en cours ──────────────────────────────
+window.toggleMultiSelect=function(type,id){
+  const arr=type==='supplements'?multiSelectState.selectedSupplementIds:multiSelectState.selectedToppingIds;
+  const idx=arr.indexOf(id);
+  if(idx===-1){arr.push(id);}else{arr.splice(idx,1);}
+  const isSelected=arr.includes(id);
+  document.getElementById('supp-item-'+id)?.classList.toggle('selected',isSelected);
+  // Met à jour le compteur du bouton de confirmation
+  const btn=document.getElementById(type==='supplements'?'btn-confirm-suppl':'btn-confirm-topping');
+  if(btn&&arr.length>0)btn.textContent=type==='supplements'?`Suivant → (${arr.length})`:`✅ Ajouter (${arr.length})`;
+  else if(btn)btn.textContent=type==='supplements'?'Suivant →':'✅ Ajouter au panier';
 };
 
-window.posSkipTopping=function(productId){
-  posSelectedToppings=[];
-  posValidateTopping(productId);
-};
-
-window.posValidateTopping=function(productId){
-  const product=DB.recettes.find(r=>r.id===productId);
+// ── Confirmation d'une étape ────────────────────────────────────────────────
+window.confirmMultiSelect=function(type,withSelection){
+  const product=multiSelectState.product;
   if(!product)return;
-  const supps=[...posCurrentSupplements];
-  const tops=[...posSelectedToppings];
-  posAddItemToCart(product,supps,tops);
+  if(!withSelection){
+    if(type==='supplements')multiSelectState.selectedSupplementIds=[];
+    else multiSelectState.selectedToppingIds=[];
+  }
+  if(type==='supplements'){
+    // S'il y a aussi des toppings éligibles, passer à l'étape 2
+    if(product.toppingEligible){
+      posRenderToppingsMulti(product);
+    } else {
+      posFinalizaMultiAdd();
+    }
+  } else {
+    posFinalizaMultiAdd();
+  }
+};
+
+// ── Finaliser et ajouter au panier ──────────────────────────────────────────
+function posFinalizaMultiAdd(){
+  const product=multiSelectState.product;
+  if(!product)return;
+  const selectedSupplements=multiSelectState.selectedSupplementIds.map(id=>DB.recettes.find(r=>r.id===id)).filter(Boolean);
+  const selectedToppings=multiSelectState.selectedToppingIds.map(id=>DB.recettes.find(r=>r.id===id)).filter(Boolean);
+  posAddItemToCartMulti(product,selectedSupplements,selectedToppings);
   const parts=[product.nom];
-  if(supps.length>0)parts.push(supps.map(s=>s.nom).join(', '));
-  if(tops.length>0)parts.push(tops.map(t=>t.nom).join(', '));
-  toast(`✅ ${parts.join(' + ')} ajouté`);
+  if(selectedSupplements.length>0)parts.push(selectedSupplements.map(s=>s.nom).join('+'));
+  if(selectedToppings.length>0)parts.push(selectedToppings.map(t=>t.nom).join('+'));
+  toast(`✅ ${parts.join(' · ')} ajouté`);
+  multiSelectState={product:null,selectedSupplementIds:[],selectedToppingIds:[],step:null};
   posRenderProducts(posCurrentCat);
   posUpdateCartBar();
-};
+}
+window.posFinalizaMultiAdd=posFinalizaMultiAdd;
 
-// ─── Panier ──────────────────────────────────────────────────────────────────
-function posAddItemToCart(product,supplements,toppings){
-  const suppKey=(supplements||[]).map(s=>s.id).sort().join('-');
-  const topKey=(toppings||[]).map(t=>t.id).sort().join('-');
-  const cartKey=`${product.id}_${suppKey}_${topKey}`;
+// ── Ajout au panier avec tableaux (remplace posAddItemToCart) ────────────────
+function posAddItemToCartMulti(product,supplements,toppings){
+  const prixSupp=supplements.reduce((s,x)=>s+x.prix,0);
+  const prixTop=toppings.reduce((s,x)=>s+x.prix,0);
+  const prixUnit=product.prix+prixSupp+prixTop;
+  const suppIds=supplements.map(s=>s.id).sort().join(',');
+  const topIds=toppings.map(t=>t.id).sort().join(',');
+  const cartKey=`${product.id}_S${suppIds}_T${topIds}`;
   const existing=posCart.find(item=>item.cartKey===cartKey);
   if(existing){existing.qty++;return;}
   posCart.push({
-    recetteId:product.id,recetteNom:product.nom,prixUnit:product.prix,image:product.image||'',
-    supplements:supplements||[],toppings:toppings||[],
+    recetteId:product.id,recetteNom:product.nom,prixBase:product.prix,prixUnit,image:product.image||'',
+    supplements:supplements.map(s=>({id:s.id,nom:s.nom,prix:s.prix})),
+    toppings:toppings.map(t=>({id:t.id,nom:t.nom,prix:t.prix})),
     qty:1,cartKey
   });
 }
@@ -2206,11 +2091,7 @@ function posUpdateCartBar(){
   const bar=document.getElementById('pos-cart-bar');
   if(!bar)return;
   const totalItems=posCart.reduce((s,i)=>s+i.qty,0);
-  const totalPrice=posCart.reduce((s,i)=>{
-    const suppPrix=(i.supplements||[]).reduce((a,x)=>a+x.prix,0);
-    const topPrix=(i.toppings||[]).reduce((a,x)=>a+x.prix,0);
-    return s+i.qty*(i.prixUnit+suppPrix+topPrix);
-  },0);
+  const totalPrice=posCart.reduce((s,i)=>s+i.qty*i.prixUnit,0);
   if(totalItems===0){
     bar.innerHTML='<div style="text-align:center;color:var(--text3);font-size:12px;padding:4px 0;">Panier vide — sélectionne un produit</div>';
   } else {
@@ -2225,31 +2106,22 @@ window.posShowCart=function(){
   const backFn=posCurrentCat?`posRenderProducts('${posCurrentCat.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')` :'posRenderCategories()';
   document.getElementById('pos-breadcrumb').innerHTML=`<button class="pos-back-btn" onclick="${backFn}">← Continuer mes achats</button><span class="pos-step-label">Mon panier</span>`;
   if(posCart.length===0){document.getElementById('pos-content').innerHTML='<div style="text-align:center;color:var(--text3);padding:30px 0;">Panier vide</div>';return;}
-  const total=posCart.reduce((s,i)=>{
-    const suppPrix=(i.supplements||[]).reduce((a,x)=>a+x.prix,0);
-    const topPrix=(i.toppings||[]).reduce((a,x)=>a+x.prix,0);
-    return s+i.qty*(i.prixUnit+suppPrix+topPrix);
-  },0);
+  const total=posCart.reduce((s,i)=>s+i.qty*i.prixUnit,0);
   document.getElementById('pos-content').innerHTML=`
-    ${posCart.map((item,idx)=>{
-      const suppPrix=(item.supplements||[]).reduce((a,x)=>a+x.prix,0);
-      const topPrix=(item.toppings||[]).reduce((a,x)=>a+x.prix,0);
-      const prixTotal=item.prixUnit+suppPrix+topPrix;
-      return`<div class="pos-cart-item">
-        ${item.image?`<img src="${item.image}" class="pos-cart-thumb">`:`<div class="pos-cart-thumb-placeholder">🍽</div>`}
-        <div style="flex:1;min-width:0;">
-          <div style="font-size:13px;font-weight:600;">${item.recetteNom}</div>
-          ${(item.supplements||[]).map(s=>`<div style="font-size:11px;color:var(--amber);">➕ ${s.nom} (+${fmtDH(s.prix)})</div>`).join('')}
-          ${(item.toppings||[]).map(t=>`<div style="font-size:11px;color:var(--blue);">🧂 ${t.nom} (+${fmtDH(t.prix)})</div>`).join('')}
-          <div style="font-size:12px;color:var(--text3);">${fmtDH(prixTotal)} × ${item.qty} = <strong>${fmtDH(item.qty*prixTotal)}</strong></div>
-        </div>
-        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-          <button class="qty-btn qty-btn-minus" onclick="posCartQty(${idx},-1)">−</button>
-          <span style="font-size:14px;font-weight:700;min-width:22px;text-align:center;">${item.qty}</span>
-          <button class="qty-btn qty-btn-plus" onclick="posCartQty(${idx},1)">+</button>
-        </div>
-      </div>`;
-    }).join('')}
+    ${posCart.map((item,idx)=>`<div class="pos-cart-item">
+      ${item.image?`<img src="${item.image}" class="pos-cart-thumb">`:`<div class="pos-cart-thumb-placeholder">🍽</div>`}
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:600;">${item.recetteNom}</div>
+        ${(item.supplements||[]).map(s=>`<div style="font-size:11px;color:var(--amber);">➕ ${s.nom}</div>`).join('')}
+        ${(item.toppings||[]).map(t=>`<div style="font-size:11px;color:var(--blue);">🧂 ${t.nom}</div>`).join('')}
+        <div style="font-size:12px;color:var(--text3);">${fmtDH(item.prixUnit)} × ${item.qty} = <strong>${fmtDH(item.qty*item.prixUnit)}</strong></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+        <button class="qty-btn qty-btn-minus" onclick="posCartQty(${idx},-1)">−</button>
+        <span style="font-size:14px;font-weight:700;min-width:22px;text-align:center;">${item.qty}</span>
+        <button class="qty-btn qty-btn-plus" onclick="posCartQty(${idx},1)">+</button>
+      </div>
+    </div>`).join('')}
     <div style="padding-top:12px;display:flex;justify-content:space-between;font-size:15px;font-weight:700;border-top:1px solid var(--border);">
       <span>Total</span><span style="color:var(--accent);">${fmtDH(total)}</span>
     </div>`;
@@ -2267,15 +2139,14 @@ window.saveVente=async function(){
   if(posCart.length===0){toast('Aucune vente saisie');return;}
   const now=new Date();let total=0;const entries=[];
   for(const item of posCart){
-    const suppPrix=(item.supplements||[]).reduce((a,x)=>a+x.prix,0);
-    const topPrix=(item.toppings||[]).reduce((a,x)=>a+x.prix,0);
-    const totalPrix=item.prixUnit+suppPrix+topPrix;
     const entry={
-      recetteId:item.recetteId,recetteNom:item.recetteNom,qty:item.qty,prixUnit:totalPrix,
-      supplements:item.supplements||[],toppings:item.toppings||[]
+      recetteId:item.recetteId,recetteNom:item.recetteNom,qty:item.qty,
+      prixBase:item.prixBase||item.prixUnit,prixUnit:item.prixUnit,
+      supplements:item.supplements||[],
+      toppings:item.toppings||[]
     };
     entries.push(entry);
-    total+=item.qty*totalPrix;
+    total+=item.qty*item.prixUnit;
     await pushToFirebase('ventes',{...entry,date:now.toISOString()});
   }
   await pushToFirebase('historique',{type:'vente',date:now.toISOString(),entries,total});
@@ -2394,11 +2265,138 @@ function renderCaisse(){
     <div class="card"><div class="card-body">${ventesSel.length===0?`<div style="color:var(--text3);font-size:12px;text-align:center;padding:10px;">Aucune vente ce jour</div>`:`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-size:12px;color:var(--text3);">Total</span><span class="badge badge-green">${fmtDH(totalSel)}</span></div>`+Object.entries(byProdSel).sort((a,b)=>a[0]>b[0]?1:-1).map(([nom,qty])=>{const r=DB.recettes.find(x=>x.nom===nom);return`<div class="list-item"><div class="list-name">${nom}</div><span style="font-size:12px;color:var(--text3);">×${qty} = ${r?fmtDH(qty*r.prix):'? DH'}</span></div>`;}).join('')}</div></div>
     <div class="section-title">Historique caisse</div>
     ${histCaisse.length===0?'<div style="color:var(--text3);font-size:12px;text-align:center;padding:16px;">Aucune saisie</div>':histCaisse.map(h=>`<div class="card"><div class="card-body"><div style="display:flex;align-items:center;justify-content:space-between;"><div><div class="list-name">🧾 Saisie caisse</div><div class="list-sub">${new Date(h.date).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})} · ${h.entries?h.entries.length:0} produit(s)</div></div><span class="badge badge-green">${fmtDH(h.total||0)}</span></div></div></div>`).join('')}
+    <div class="section-title" style="margin-top:16px;">🔒 Fermetures de caisse</div>
+    ${(()=>{
+      const ferms=[...DB.fermetures].slice(0,8);
+      if(ferms.length===0) return '<div style="color:var(--text3);font-size:12px;text-align:center;padding:16px;">Aucune fermeture enregistrée</div>';
+      return ferms.map(f=>{
+        const ecart=f.ecart||0;
+        const sign=ecart>=0?'+':'';
+        const cls=Math.abs(ecart)<0.01?'ok':Math.abs(ecart)<=10?'warn':'danger';
+        const ecartColor=cls==='ok'?'var(--green)':cls==='warn'?'var(--amber)':'var(--danger)';
+        const ecartIcon=cls==='ok'?'✅':cls==='warn'?'⚠️':'🔴';
+        return `<div class="card" style="margin-bottom:8px;"><div class="card-body">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+            <div>
+              <div class="list-name">🔒 Fermeture</div>
+              <div class="list-sub">${new Date(f.date).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
+            </div>
+            <span class="badge badge-green">${fmtDH(f.montantCompte||0)}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;background:var(--surface2);border-radius:var(--radius-sm);padding:6px 10px;">
+            <span style="font-size:11px;color:var(--text3);">Théorique&nbsp;<strong>${fmtDH(f.totalTheorique||0)}</strong> · Compté&nbsp;<strong>${fmtDH(f.montantCompte||0)}</strong></span>
+            <span style="font-size:13px;font-weight:700;color:${ecartColor};">${ecartIcon} ${sign}${fmtDH(ecart)}</span>
+          </div>
+          ${f.note?`<div style="font-size:11px;color:var(--text3);margin-top:5px;font-style:italic;">📝 ${f.note}</div>`:''}
+        </div></div>`;
+      }).join('');
+    })()}
     <div style="height:8px;"></div>`;
 }
 window.selectCalDay=function(ds){calSelectedDate=ds;renderCaisse();};
 window.prevMonth=function(){calMonth--;if(calMonth<0){calMonth=11;calYear--;}renderCaisse();};
 window.nextMonth=function(){calMonth++;if(calMonth>11){calMonth=0;calYear++;}renderCaisse();};
+
+// ==================== FERMETURE DE CAISSE ====================
+
+// Ouvre le modal et pré-remplit les données du jour
+window.openModal_fermeture_setup = function() {
+  const now = new Date();
+  const todayStr = fmtDate(now);
+  const ventesJour = getVentesForDate(todayStr);
+  const totalTheorique = ventesJour.reduce((s,v) => s + v.qty * v.prixUnit, 0);
+  const nbArticles = ventesJour.reduce((s,v) => s + v.qty, 0);
+
+  document.getElementById('fermeture-date-label').textContent =
+    now.toLocaleDateString('fr-FR', {weekday:'long', day:'2-digit', month:'long', year:'numeric'}) +
+    ' — ' + now.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
+  document.getElementById('fermeture-total-theorique').textContent = fmtDH(totalTheorique);
+  document.getElementById('fermeture-nb-ventes').textContent =
+    nbArticles > 0 ? `${nbArticles} article(s) vendu(s) en ${ventesJour.length} transaction(s)` : 'Aucune vente enregistrée aujourd\'hui';
+  document.getElementById('fermeture-montant').value = '';
+  document.getElementById('fermeture-note').value = '';
+  // Reset écart
+  const box = document.getElementById('fermeture-ecart-box');
+  box.className = 'fermeture-ecart-box';
+  box.style = 'border-radius:var(--radius-sm);padding:12px;margin-bottom:14px;border:1.5px solid var(--border);';
+  document.getElementById('fermeture-ecart-val').textContent = '—';
+  document.getElementById('fermeture-ecart-val').style.color = 'var(--text2)';
+  document.getElementById('fermeture-ecart-hint').textContent = 'Saisissez le montant compté pour calculer l\'écart';
+};
+
+// Mise à jour dynamique de l'écart quand l'utilisateur tape le montant
+window.updateFermetureEcart = function() {
+  const todayStr = fmtDate(new Date());
+  const ventesJour = getVentesForDate(todayStr);
+  const totalTheorique = ventesJour.reduce((s,v) => s + v.qty * v.prixUnit, 0);
+  const montantVal = document.getElementById('fermeture-montant').value;
+  const box = document.getElementById('fermeture-ecart-box');
+  const ecartEl = document.getElementById('fermeture-ecart-val');
+  const hintEl = document.getElementById('fermeture-ecart-hint');
+
+  if (montantVal === '' || isNaN(parseFloat(montantVal))) {
+    box.style.borderColor = 'var(--border)';
+    box.style.background = '';
+    ecartEl.textContent = '—';
+    ecartEl.style.color = 'var(--text2)';
+    hintEl.textContent = 'Saisissez le montant compté pour calculer l\'écart';
+    return;
+  }
+
+  const montant = parseFloat(montantVal);
+  const ecart = montant - totalTheorique;
+  const sign = ecart >= 0 ? '+' : '';
+  ecartEl.textContent = sign + fmtDH(ecart);
+
+  if (Math.abs(ecart) < 0.01) {
+    // Parfait équilibre
+    box.style.borderColor = 'var(--green)';
+    box.style.background = 'var(--green-light)';
+    ecartEl.style.color = 'var(--green)';
+    hintEl.textContent = '✅ Caisse parfaitement équilibrée';
+  } else if (Math.abs(ecart) <= 10) {
+    // Petit écart tolérable
+    box.style.borderColor = 'var(--amber)';
+    box.style.background = 'var(--amber-light)';
+    ecartEl.style.color = 'var(--amber)';
+    hintEl.textContent = ecart > 0 ? '⚠️ Surplus en caisse' : '⚠️ Manque en caisse';
+  } else {
+    // Écart important
+    box.style.borderColor = 'var(--danger)';
+    box.style.background = '#fff0f0';
+    ecartEl.style.color = 'var(--danger)';
+    hintEl.textContent = ecart > 0 ? '🔴 Surplus important — à vérifier' : '🔴 Déficit important — à vérifier';
+  }
+};
+
+// Sauvegarde la fermeture dans Firebase
+window.saveFermeture = async function() {
+  const montantStr = document.getElementById('fermeture-montant').value;
+  if (montantStr === '' || isNaN(parseFloat(montantStr))) {
+    toast('❌ Veuillez saisir le montant compté en caisse');
+    return;
+  }
+  const montant = parseFloat(montantStr);
+  const note = document.getElementById('fermeture-note').value.trim();
+  const now = new Date();
+  const todayStr = fmtDate(now);
+  const ventesJour = getVentesForDate(todayStr);
+  const totalTheorique = ventesJour.reduce((s,v) => s + v.qty * v.prixUnit, 0);
+  const ecart = montant - totalTheorique;
+
+  await pushToFirebase('fermetures', {
+    date: now.toISOString(),
+    totalTheorique,
+    montantCompte: montant,
+    ecart,
+    note: note || '',
+    nbVentes: ventesJour.length
+  });
+
+  closeModal('modal-fermeture');
+  const sign = ecart >= 0 ? '+' : '';
+  toast(`🔒 Fermeture enregistrée — Écart : ${sign}${fmtDH(ecart)}`);
+};
 
 // ==================== FINANCE (Maître) ====================
 function calcCoutMatiere(recette, avecPerte, mk){
