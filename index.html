@@ -2220,6 +2220,97 @@ window.deleteVenteProd=async function(nom){
 function getVentesForDate(ds){return DB.ventes.filter(v=>fmtDate(new Date(v.date))===ds);}
 function getDatesWithVentes(){const s=new Set();DB.ventes.forEach(v=>s.add(fmtDate(new Date(v.date))));return s;}
 
+// ── État de la section Historique / Fermetures ──────────────
+let caisseHistOpen = false;
+let caisseHistView = 'global'; // 'global' | 'mois'
+let caisseHistMoisKey = null;  // 'YYYY-MM'
+let caisseFermOpen = false;
+
+// Décale un mois clé 'YYYY-MM' de +/- delta mois
+function _shiftMois(mk, delta) {
+  let [yr, mo] = mk.split('-').map(Number);
+  mo += delta;
+  if (mo > 12) { mo = 1; yr++; }
+  if (mo < 1)  { mo = 12; yr--; }
+  return `${yr}-${String(mo).padStart(2,'0')}`;
+}
+
+// Construit le HTML de la section Historique caisse (collapsible + 2 vues)
+function _buildHistoriqueSection(histAll) {
+  const nb = histAll.length;
+  const chevron = caisseHistOpen ? '⌄' : '›';
+  const btnHtml = `<button class="btn btn-secondary" onclick="toggleCaisseHist()" style="margin-bottom:${caisseHistOpen?'10':'4'}px;display:flex;justify-content:space-between;align-items:center;"><span>📋 Historique caisse</span><span style="display:flex;align-items:center;gap:6px;">${nb>0?`<span class="badge badge-green">${nb}</span>`:''}<span style="font-size:18px;line-height:1;">${chevron}</span></span></button>`;
+  if (!caisseHistOpen) return btnHtml;
+
+  const MOIS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const now = new Date();
+  if (!caisseHistMoisKey) caisseHistMoisKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+
+  let innerHtml = '';
+  if (caisseHistView === 'global') {
+    const slice = histAll.slice(0, 30);
+    innerHtml = slice.length === 0
+      ? '<div style="color:var(--text3);font-size:12px;text-align:center;padding:16px;">Aucune saisie</div>'
+      : slice.map(h => `<div class="card" style="margin-bottom:6px;"><div class="card-body" style="padding:10px 14px;"><div style="display:flex;align-items:center;justify-content:space-between;"><div><div class="list-name">🧾 Saisie caisse</div><div class="list-sub">${new Date(h.date).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})} · ${h.entries?h.entries.length:0} produit(s)</div></div><span class="badge badge-green">${fmtDH(h.total||0)}</span></div></div></div>`).join('');
+  } else {
+    const mk = caisseHistMoisKey;
+    const [yr, mo] = mk.split('-').map(Number);
+    const entriesMois = histAll.filter(h => { const d=new Date(h.date); return d.getFullYear()===yr && d.getMonth()+1===mo; });
+    const totalMois = entriesMois.reduce((s,h)=>s+(h.total||0),0);
+    const byDay = {};
+    entriesMois.forEach(h => { const ds=fmtDate(new Date(h.date)); if(!byDay[ds])byDay[ds]=[]; byDay[ds].push(h); });
+    const dayKeys = Object.keys(byDay).sort().reverse();
+    innerHtml = `<div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border-radius:var(--radius-sm);padding:8px 12px;margin-bottom:10px;"><button onclick="navHistMois('${_shiftMois(mk,-1)}')" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text2);padding:0 4px;">‹</button><div style="text-align:center;"><div style="font-weight:600;font-size:14px;">${MOIS_FR[mo-1]} ${yr}</div>${entriesMois.length>0?`<div style="font-size:11px;color:var(--text3);">${entriesMois.length} saisie(s) · <strong>${fmtDH(totalMois)}</strong></div>`:''}</div><button onclick="navHistMois('${_shiftMois(mk,+1)}')" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text2);padding:0 4px;">›</button></div>`;
+    if (dayKeys.length === 0) {
+      innerHtml += '<div style="color:var(--text3);font-size:12px;text-align:center;padding:16px;">Aucune saisie ce mois</div>';
+    } else {
+      innerHtml += dayKeys.map(ds => {
+        const ents = byDay[ds];
+        const totalDay = ents.reduce((s,h)=>s+(h.total||0),0);
+        const label = new Date(ds+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'long',day:'2-digit',month:'long'});
+        return `<div style="margin-bottom:12px;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;padding:0 2px;"><span style="font-size:11px;font-weight:600;color:var(--text3);text-transform:capitalize;">${label}</span><span style="font-size:11px;font-weight:600;color:var(--accent);">${fmtDH(totalDay)}</span></div>${ents.map(h=>`<div class="card" style="margin-bottom:5px;"><div class="card-body" style="padding:8px 12px;"><div style="display:flex;align-items:center;justify-content:space-between;"><div><div style="font-size:12px;font-weight:500;">🧾 ${new Date(h.date).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</div><div style="font-size:11px;color:var(--text3);">${h.entries?h.entries.length:0} produit(s)</div></div><span class="badge badge-green">${fmtDH(h.total||0)}</span></div></div></div>`).join('')}</div>`;
+      }).join('');
+    }
+  }
+
+  return `${btnHtml}<div style="margin-bottom:8px;"><div style="display:flex;gap:6px;margin-bottom:10px;"><button onclick="setCaisseHistView('global')" class="pill ${caisseHistView==='global'?'active':''}">Vue globale</button><button onclick="setCaisseHistView('mois')" class="pill ${caisseHistView==='mois'?'active':''}">Par mois</button></div>${innerHtml}</div>`;
+}
+
+// Construit le HTML de la section Fermetures (collapsible)
+function _buildFermeturesSection() {
+  const ferms = [...DB.fermetures];
+  const nb = ferms.length;
+  const chevron = caisseFermOpen ? '⌄' : '›';
+  const btnHtml = `<button class="btn btn-secondary" onclick="toggleCaisseFerm()" style="margin-bottom:${caisseFermOpen?'10':'4'}px;display:flex;justify-content:space-between;align-items:center;"><span>🔒 Historique fermetures</span><span style="display:flex;align-items:center;gap:6px;">${nb>0?`<span class="badge badge-green">${nb}</span>`:''}<span style="font-size:18px;line-height:1;">${chevron}</span></span></button>`;
+  if (!caisseFermOpen) return btnHtml;
+  let content = '';
+  if (ferms.length === 0) {
+    content = '<div style="color:var(--text3);font-size:12px;text-align:center;padding:16px;">Aucune fermeture enregistrée</div>';
+  } else {
+    content = ferms.slice(0,8).map(f => {
+      const ecart=f.ecart||0; const sign=ecart>=0?'+':'';
+      const cls=Math.abs(ecart)<0.01?'ok':Math.abs(ecart)<=10?'warn':'danger';
+      const ecartColor=cls==='ok'?'var(--green)':cls==='warn'?'var(--amber)':'var(--danger)';
+      const ecartIcon=cls==='ok'?'✅':cls==='warn'?'⚠️':'🔴';
+      return `<div class="card" style="margin-bottom:8px;"><div class="card-body"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;"><div><div class="list-name">🔒 Fermeture</div><div class="list-sub">${new Date(f.date).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div></div><span class="badge badge-green">${fmtDH(f.montantCompte||0)}</span></div><div style="display:flex;justify-content:space-between;align-items:center;background:var(--surface2);border-radius:var(--radius-sm);padding:6px 10px;"><span style="font-size:11px;color:var(--text3);">Théorique&nbsp;<strong>${fmtDH(f.totalTheorique||0)}</strong> · Compté&nbsp;<strong>${fmtDH(f.montantCompte||0)}</strong></span><span style="font-size:13px;font-weight:700;color:${ecartColor};">${ecartIcon} ${sign}${fmtDH(ecart)}</span></div>${f.note?`<div style="font-size:11px;color:var(--text3);margin-top:5px;font-style:italic;">📝 ${f.note}</div>`:''}</div></div>`;
+    }).join('');
+  }
+  return `${btnHtml}<div style="margin-bottom:8px;">${content}</div>`;
+}
+
+// Construit le bloc "Fermeture du jour" à injecter dans le Détail
+function _buildFermetureJour(selStr) {
+  const fermJour = DB.fermetures.filter(f => fmtDate(new Date(f.date)) === selStr);
+  if (fermJour.length === 0) return '';
+  return fermJour.map(f => {
+    const ecart=f.ecart||0; const sign=ecart>=0?'+':'';
+    const cls=Math.abs(ecart)<0.01?'ok':Math.abs(ecart)<=10?'warn':'danger';
+    const ecartColor=cls==='ok'?'var(--green)':cls==='warn'?'var(--amber)':'var(--danger)';
+    const ecartIcon=cls==='ok'?'✅':cls==='warn'?'⚠️':'🔴';
+    return `<div style="border-top:0.5px solid var(--border);margin-top:8px;padding-top:8px;"><div style="display:flex;align-items:center;justify-content:space-between;"><div><div style="font-size:12px;font-weight:600;">🔒 Fermeture · ${new Date(f.date).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</div><div style="font-size:11px;color:var(--text3);margin-top:2px;">Théorique ${fmtDH(f.totalTheorique||0)} · Compté ${fmtDH(f.montantCompte||0)}</div>${f.note?`<div style="font-size:11px;color:var(--text3);font-style:italic;margin-top:1px;">📝 ${f.note}</div>`:''}</div><span style="font-size:13px;font-weight:700;color:${ecartColor};">${ecartIcon} ${sign}${fmtDH(ecart)}</span></div></div>`;
+  }).join('');
+}
+
 function renderCaisse(){
   const c=document.getElementById('caisse-content');
   const today=new Date();const todayStr=fmtDate(today);
@@ -2237,7 +2328,7 @@ function renderCaisse(){
   const selStr=calSelectedDate||todayStr;
   const ventesSel=getVentesForDate(selStr);const totalSel=ventesSel.reduce((s,v)=>s+v.qty*v.prixUnit,0);
   const byProdSel={};ventesSel.forEach(v=>{byProdSel[v.recetteNom]=(byProdSel[v.recetteNom]||0)+v.qty;});
-  const histCaisse=[...DB.historique].filter(h=>h.type==='vente').reverse().slice(0,10);
+  const histAll=[...DB.historique].filter(h=>h.type==='vente').reverse();
   c.innerHTML=`
     <div class="kpi-grid">
       <div class="kpi-card"><div class="kpi-label">CA aujourd'hui</div><div class="kpi-value">${totalJour.toFixed(2)}</div><div class="kpi-sub">DH</div></div>
@@ -2262,40 +2353,19 @@ function renderCaisse(){
       <div class="cal-grid">${days.map(({d,other})=>{const ds=fmtDate(d);const isToday=ds===todayStr;const isSel=ds===selStr;const hasData=datesWithVentes.has(ds)&&!other;return`<button class="cal-day ${other?'other-month':''} ${hasData?'has-data':''} ${isSel?'selected':''} ${isToday&&!isSel?'today':''}" onclick="selectCalDay('${ds}')">${d.getDate()}</button>`;}).join('')}</div>
     </div></div>
     <div class="section-title">Détail du ${new Date(selStr+'T12:00:00').toLocaleDateString('fr-FR',{day:'2-digit',month:'long'})}</div>
-    <div class="card"><div class="card-body">${ventesSel.length===0?`<div style="color:var(--text3);font-size:12px;text-align:center;padding:10px;">Aucune vente ce jour</div>`:`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-size:12px;color:var(--text3);">Total</span><span class="badge badge-green">${fmtDH(totalSel)}</span></div>`+Object.entries(byProdSel).sort((a,b)=>a[0]>b[0]?1:-1).map(([nom,qty])=>{const r=DB.recettes.find(x=>x.nom===nom);return`<div class="list-item"><div class="list-name">${nom}</div><span style="font-size:12px;color:var(--text3);">×${qty} = ${r?fmtDH(qty*r.prix):'? DH'}</span></div>`;}).join('')}</div></div>
-    <div class="section-title">Historique caisse</div>
-    ${histCaisse.length===0?'<div style="color:var(--text3);font-size:12px;text-align:center;padding:16px;">Aucune saisie</div>':histCaisse.map(h=>`<div class="card"><div class="card-body"><div style="display:flex;align-items:center;justify-content:space-between;"><div><div class="list-name">🧾 Saisie caisse</div><div class="list-sub">${new Date(h.date).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})} · ${h.entries?h.entries.length:0} produit(s)</div></div><span class="badge badge-green">${fmtDH(h.total||0)}</span></div></div></div>`).join('')}
-    <div class="section-title" style="margin-top:16px;">🔒 Fermetures de caisse</div>
-    ${(()=>{
-      const ferms=[...DB.fermetures].slice(0,8);
-      if(ferms.length===0) return '<div style="color:var(--text3);font-size:12px;text-align:center;padding:16px;">Aucune fermeture enregistrée</div>';
-      return ferms.map(f=>{
-        const ecart=f.ecart||0;
-        const sign=ecart>=0?'+':'';
-        const cls=Math.abs(ecart)<0.01?'ok':Math.abs(ecart)<=10?'warn':'danger';
-        const ecartColor=cls==='ok'?'var(--green)':cls==='warn'?'var(--amber)':'var(--danger)';
-        const ecartIcon=cls==='ok'?'✅':cls==='warn'?'⚠️':'🔴';
-        return `<div class="card" style="margin-bottom:8px;"><div class="card-body">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-            <div>
-              <div class="list-name">🔒 Fermeture</div>
-              <div class="list-sub">${new Date(f.date).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
-            </div>
-            <span class="badge badge-green">${fmtDH(f.montantCompte||0)}</span>
-          </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;background:var(--surface2);border-radius:var(--radius-sm);padding:6px 10px;">
-            <span style="font-size:11px;color:var(--text3);">Théorique&nbsp;<strong>${fmtDH(f.totalTheorique||0)}</strong> · Compté&nbsp;<strong>${fmtDH(f.montantCompte||0)}</strong></span>
-            <span style="font-size:13px;font-weight:700;color:${ecartColor};">${ecartIcon} ${sign}${fmtDH(ecart)}</span>
-          </div>
-          ${f.note?`<div style="font-size:11px;color:var(--text3);margin-top:5px;font-style:italic;">📝 ${f.note}</div>`:''}
-        </div></div>`;
-      }).join('');
-    })()}
+    <div class="card"><div class="card-body">${ventesSel.length===0?`<div style="color:var(--text3);font-size:12px;text-align:center;padding:10px;">Aucune vente ce jour</div>`:`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-size:12px;color:var(--text3);">Total ventes</span><span class="badge badge-green">${fmtDH(totalSel)}</span></div>`+Object.entries(byProdSel).sort((a,b)=>a[0]>b[0]?1:-1).map(([nom,qty])=>{const r=DB.recettes.find(x=>x.nom===nom);return`<div class="list-item"><div class="list-name">${nom}</div><span style="font-size:12px;color:var(--text3);">×${qty} = ${r?fmtDH(qty*r.prix):'? DH'}</span></div>`;}).join('')}${_buildFermetureJour(selStr)}</div></div>
+    <div class="section-title">Historique & Fermetures</div>
+    ${_buildHistoriqueSection(histAll)}
+    ${_buildFermeturesSection()}
     <div style="height:8px;"></div>`;
 }
 window.selectCalDay=function(ds){calSelectedDate=ds;renderCaisse();};
 window.prevMonth=function(){calMonth--;if(calMonth<0){calMonth=11;calYear--;}renderCaisse();};
 window.nextMonth=function(){calMonth++;if(calMonth>11){calMonth=0;calYear++;}renderCaisse();};
+window.toggleCaisseHist=function(){caisseHistOpen=!caisseHistOpen;renderCaisse();};
+window.setCaisseHistView=function(v){caisseHistView=v;renderCaisse();};
+window.navHistMois=function(mk){caisseHistMoisKey=mk;renderCaisse();};
+window.toggleCaisseFerm=function(){caisseFermOpen=!caisseFermOpen;renderCaisse();};
 
 // ==================== FERMETURE DE CAISSE ====================
 
