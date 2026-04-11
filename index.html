@@ -2220,7 +2220,8 @@ window.deleteVenteProd=async function(nom){
 function getVentesForDate(ds){return DB.ventes.filter(v=>fmtDate(new Date(v.date))===ds);}
 function getDatesWithVentes(){const s=new Set();DB.ventes.forEach(v=>s.add(fmtDate(new Date(v.date))));return s;}
 
-// ── État de la section Historique / Fermetures ──────────────
+// ── État des sections collapsibles de la Caisse ─────────────
+let caisseTopOpen = false;
 let caisseHistOpen = false;
 let caisseHistView = 'global'; // 'global' | 'mois'
 let caisseHistMoisKey = null;  // 'YYYY-MM'
@@ -2233,6 +2234,22 @@ function _shiftMois(mk, delta) {
   if (mo > 12) { mo = 1; yr++; }
   if (mo < 1)  { mo = 12; yr--; }
   return `${yr}-${String(mo).padStart(2,'0')}`;
+}
+
+// Construit le HTML de la section Top produits (collapsible)
+function _buildTopProduitsSection(totalVentes) {
+  const nb = DB.recettes.filter(r => (totalVentes[r.id]||0) > 0).length;
+  const chevron = caisseTopOpen ? '⌄' : '›';
+  const btnHtml = `<button class="btn btn-secondary" onclick="toggleCaisseTop()" style="margin-bottom:${caisseTopOpen?'10':'4'}px;display:flex;justify-content:space-between;align-items:center;"><span>🏆 Top produits (total)</span><span style="display:flex;align-items:center;gap:6px;">${nb>0?`<span class="badge badge-green">${nb} produit(s)</span>`:''}<span style="font-size:18px;line-height:1;">${chevron}</span></span></button>`;
+  if (!caisseTopOpen) return btnHtml;
+  const content = DB.recettes.length===0
+    ? '<div style="color:var(--text3);font-size:12px;">Aucun produit</div>'
+    : [...DB.recettes].sort((a,b)=>(totalVentes[b.id]||0)-(totalVentes[a.id]||0)).map(r=>{
+        const v=totalVentes[r.id]||0;
+        const max=Math.max(...DB.recettes.map(x=>totalVentes[x.id]||0),1);
+        return `<div class="list-item"><div><div class="list-name">${r.nom}</div><div class="list-sub">${fmtDH(v*r.prix)}</div></div><div style="text-align:right;"><span style="font-weight:600;">${v}</span><div class="progress-bar" style="width:80px;margin-top:4px;"><div class="progress-fill" style="width:${(v/max*100).toFixed(0)}%;background:var(--accent);"></div></div></div></div>`;
+      }).join('');
+  return `${btnHtml}<div class="card" style="margin-bottom:4px;"><div class="card-body">${content}</div></div>`;
 }
 
 // Construit le HTML de la section Historique caisse (collapsible + 2 vues)
@@ -2340,8 +2357,7 @@ function renderCaisse(){
     </div>
     <div class="section-title">Ventes d\'aujourd\'hui</div>
     <div class="card"><div class="card-body">${Object.keys(byProdToday).length===0?'<div style="color:var(--text3);font-size:12px;text-align:center;padding:10px;">Aucune vente aujourd\'hui</div>':Object.entries(byProdToday).sort((a,b)=>a[0]>b[0]?1:-1).map(([nom,qty])=>{const r=DB.recettes.find(x=>x.nom===nom);return`<div class="list-item"><div><div class="list-name">${nom}</div><div class="list-sub">${r?fmtDH(qty*r.prix):''}</div></div><span style="font-weight:600;">×${qty}</span></div>`;}).join('')}</div></div>
-    <div class="section-title">Top produits (total)</div>
-    <div class="card"><div class="card-body">${DB.recettes.length===0?'<div style="color:var(--text3);font-size:12px;">Aucun produit</div>':[...DB.recettes].sort((a,b)=>(totalVentes[b.id]||0)-(totalVentes[a.id]||0)).map(r=>{const v=totalVentes[r.id]||0;const max=Math.max(...DB.recettes.map(x=>totalVentes[x.id]||0),1);return`<div class="list-item"><div><div class="list-name">${r.nom}</div><div class="list-sub">${fmtDH(v*r.prix)}</div></div><div style="text-align:right;"><span style="font-weight:600;">${v}</span><div class="progress-bar" style="width:80px;margin-top:4px;"><div class="progress-fill" style="width:${(v/max*100).toFixed(0)}%;background:var(--accent);"></div></div></div></div>`;}).join('')}</div></div>
+    ${_buildTopProduitsSection(totalVentes)}
     <div class="section-title">Calendrier des ventes</div>
     <div class="card"><div class="card-body" style="padding:12px;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
@@ -2362,6 +2378,7 @@ function renderCaisse(){
 window.selectCalDay=function(ds){calSelectedDate=ds;renderCaisse();};
 window.prevMonth=function(){calMonth--;if(calMonth<0){calMonth=11;calYear--;}renderCaisse();};
 window.nextMonth=function(){calMonth++;if(calMonth>11){calMonth=0;calYear++;}renderCaisse();};
+window.toggleCaisseTop=function(){caisseTopOpen=!caisseTopOpen;renderCaisse();};
 window.toggleCaisseHist=function(){caisseHistOpen=!caisseHistOpen;renderCaisse();};
 window.setCaisseHistView=function(v){caisseHistView=v;renderCaisse();};
 window.navHistMois=function(mk){caisseHistMoisKey=mk;renderCaisse();};
