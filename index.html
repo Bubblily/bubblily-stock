@@ -363,15 +363,39 @@ body{font-family:-apple-system,'SF Pro Text','Helvetica Neue',sans-serif;backgro
     <div class="card-title" style="margin-bottom:4px;">🔒 Fermeture de caisse</div>
     <div style="font-size:12px;color:var(--text3);margin-bottom:16px;" id="fermeture-date-label"></div>
 
-    <!-- Résumé ventes du jour -->
+    <!-- Caisse théorique détaillée -->
     <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:12px;margin-bottom:14px;">
-      <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Ventes enregistrées aujourd'hui</div>
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <span style="font-size:13px;color:var(--text2);">Total théorique caisse</span>
-        <span style="font-size:18px;font-weight:700;color:var(--accent);" id="fermeture-total-theorique">0,00 DH</span>
+      <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Caisse théorique</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+        <span style="font-size:12px;color:var(--text2);">💼 Fond initial (dern. fermeture)</span>
+        <span style="font-size:13px;font-weight:600;color:var(--text2);" id="fermeture-fond-initial">0,00 DH</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <span style="font-size:12px;color:var(--text2);">+ Ventes du jour</span>
+        <span style="font-size:13px;font-weight:600;color:var(--accent);" id="fermeture-ventes-jour">0,00 DH</span>
+      </div>
+      <div style="border-top:1px solid var(--border);padding-top:6px;display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:13px;font-weight:700;">= Total théorique</span>
+        <span style="font-size:16px;font-weight:700;color:var(--accent);" id="fermeture-total-theorique">0,00 DH</span>
       </div>
       <div style="font-size:11px;color:var(--text3);margin-top:4px;" id="fermeture-nb-ventes"></div>
     </div>
+
+    <!-- Achats / Paiements fournisseurs -->
+    <div style="margin-bottom:14px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <span class="label" style="margin:0;font-size:12px;">🛒 Achats / Paiements fournisseurs</span>
+        <button class="btn btn-sm btn-secondary" onclick="fermetureAddAchat()" style="font-size:11px;padding:4px 10px;">+ Ajouter</button>
+      </div>
+      <div id="fermeture-achats-list" style="margin-bottom:2px;"></div>
+      <div id="fermeture-achats-total" style="display:none;background:var(--surface2);border-radius:var(--radius-sm);padding:7px 10px;font-size:12px;">
+        <div style="display:flex;justify-content:space-between;"><span style="color:var(--text2);">− Total achats</span><span id="fermeture-achats-total-val" style="font-weight:700;color:var(--danger);">0,00 DH</span></div>
+      </div>
+      <div id="fermeture-ajuste-box" style="display:none;background:var(--surface2);border-radius:var(--radius-sm);padding:7px 10px;font-size:13px;margin-top:3px;">
+        <div style="display:flex;justify-content:space-between;"><span style="font-weight:700;">= Théorique ajusté</span><span id="fermeture-ajuste-val" style="font-weight:700;color:var(--accent);">0,00 DH</span></div>
+      </div>
+    </div>
+    <datalist id="fournisseurs-suggestions"></datalist>
 
     <!-- Montant compté physiquement -->
     <div class="label">💵 Montant compté en caisse (DH)</div>
@@ -2293,6 +2317,14 @@ function _buildHistoriqueSection(histAll) {
   return `${btnHtml}<div style="margin-bottom:8px;"><div style="display:flex;gap:6px;margin-bottom:10px;"><button onclick="setCaisseHistView('global')" class="pill ${caisseHistView==='global'?'active':''}">Vue globale</button><button onclick="setCaisseHistView('mois')" class="pill ${caisseHistView==='mois'?'active':''}">Par mois</button></div>${innerHtml}</div>`;
 }
 
+// Helper : retourne HTML couleur+icône pour un écart
+function _ecartStyle(ecart) {
+  const abs = Math.abs(ecart);
+  if (abs < 0.01) return { color:'var(--green)', icon:'✅' };
+  if (abs <= 10)  return { color:'var(--amber)', icon:'⚠️' };
+  return { color:'var(--danger)', icon:'🔴' };
+}
+
 // Construit le HTML de la section Fermetures (collapsible)
 function _buildFermeturesSection() {
   const ferms = [...DB.fermetures];
@@ -2304,12 +2336,33 @@ function _buildFermeturesSection() {
   if (ferms.length === 0) {
     content = '<div style="color:var(--text3);font-size:12px;text-align:center;padding:16px;">Aucune fermeture enregistrée</div>';
   } else {
-    content = ferms.slice(0,8).map(f => {
-      const ecart=f.ecart||0; const sign=ecart>=0?'+':'';
-      const cls=Math.abs(ecart)<0.01?'ok':Math.abs(ecart)<=10?'warn':'danger';
-      const ecartColor=cls==='ok'?'var(--green)':cls==='warn'?'var(--amber)':'var(--danger)';
-      const ecartIcon=cls==='ok'?'✅':cls==='warn'?'⚠️':'🔴';
-      return `<div class="card" style="margin-bottom:8px;"><div class="card-body"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;"><div><div class="list-name">🔒 Fermeture</div><div class="list-sub">${new Date(f.date).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div></div><span class="badge badge-green">${fmtDH(f.montantCompte||0)}</span></div><div style="display:flex;justify-content:space-between;align-items:center;background:var(--surface2);border-radius:var(--radius-sm);padding:6px 10px;"><span style="font-size:11px;color:var(--text3);">Théorique&nbsp;<strong>${fmtDH(f.totalTheorique||0)}</strong> · Compté&nbsp;<strong>${fmtDH(f.montantCompte||0)}</strong></span><span style="font-size:13px;font-weight:700;color:${ecartColor};">${ecartIcon} ${sign}${fmtDH(ecart)}</span></div>${f.note?`<div style="font-size:11px;color:var(--text3);margin-top:5px;font-style:italic;">📝 ${f.note}</div>`:''}</div></div>`;
+    content = ferms.slice(0, 8).map(f => {
+      const ecart = f.ecart || 0; const sign = ecart >= 0 ? '+' : '';
+      const {color:ecartColor, icon:ecartIcon} = _ecartStyle(ecart);
+      const fondLine = f.fondInitial != null
+        ? `<div style="font-size:11px;color:var(--text3);margin-top:2px;">💼 Fond ${fmtDH(f.fondInitial)} + Ventes ${fmtDH(f.totalVentes||0)} = Théo. ${fmtDH(f.totalTheorique||0)}</div>`
+        : `<div style="font-size:11px;color:var(--text3);margin-top:2px;">Théorique ${fmtDH(f.totalTheorique||0)}</div>`;
+      const achatsLine = f.achats && f.achats.length > 0
+        ? `<div style="font-size:11px;color:var(--danger);margin-top:2px;">🛒 Achats : ${f.achats.map(a=>`${a.fournisseur||'?'} (${fmtDH(a.montant||0)})`).join(', ')} = −${fmtDH(f.totalAchats||0)}</div>`
+        : '';
+      const ajusteLine = f.achats && f.achats.length > 0
+        ? `<div style="font-size:11px;color:var(--text2);margin-top:1px;">→ Ajusté : ${fmtDH(f.theoriqueAjuste||0)}</div>`
+        : '';
+      const noteLine = f.note ? `<div style="font-size:11px;color:var(--text3);margin-top:5px;font-style:italic;">📝 ${f.note}</div>` : '';
+      return `<div class="card" style="margin-bottom:8px;"><div class="card-body">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <div><div class="list-name">🔒 Fermeture</div><div class="list-sub">${new Date(f.date).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div></div>
+          <span class="badge badge-green">${fmtDH(f.montantCompte||0)}</span>
+        </div>
+        <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:6px 10px;margin-bottom:4px;">
+          ${fondLine}${achatsLine}${ajusteLine}
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
+            <span style="font-size:11px;color:var(--text3);">Compté <strong>${fmtDH(f.montantCompte||0)}</strong></span>
+            <span style="font-size:13px;font-weight:700;color:${ecartColor};">${ecartIcon} ${sign}${fmtDH(ecart)}</span>
+          </div>
+        </div>
+        ${noteLine}
+      </div></div>`;
     }).join('');
   }
   return `${btnHtml}<div style="margin-bottom:8px;">${content}</div>`;
@@ -2320,11 +2373,27 @@ function _buildFermetureJour(selStr) {
   const fermJour = DB.fermetures.filter(f => fmtDate(new Date(f.date)) === selStr);
   if (fermJour.length === 0) return '';
   return fermJour.map(f => {
-    const ecart=f.ecart||0; const sign=ecart>=0?'+':'';
-    const cls=Math.abs(ecart)<0.01?'ok':Math.abs(ecart)<=10?'warn':'danger';
-    const ecartColor=cls==='ok'?'var(--green)':cls==='warn'?'var(--amber)':'var(--danger)';
-    const ecartIcon=cls==='ok'?'✅':cls==='warn'?'⚠️':'🔴';
-    return `<div style="border-top:0.5px solid var(--border);margin-top:8px;padding-top:8px;"><div style="display:flex;align-items:center;justify-content:space-between;"><div><div style="font-size:12px;font-weight:600;">🔒 Fermeture · ${new Date(f.date).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</div><div style="font-size:11px;color:var(--text3);margin-top:2px;">Théorique ${fmtDH(f.totalTheorique||0)} · Compté ${fmtDH(f.montantCompte||0)}</div>${f.note?`<div style="font-size:11px;color:var(--text3);font-style:italic;margin-top:1px;">📝 ${f.note}</div>`:''}</div><span style="font-size:13px;font-weight:700;color:${ecartColor};">${ecartIcon} ${sign}${fmtDH(ecart)}</span></div></div>`;
+    const ecart = f.ecart || 0; const sign = ecart >= 0 ? '+' : '';
+    const {color:ecartColor, icon:ecartIcon} = _ecartStyle(ecart);
+    const fondLine = f.fondInitial != null
+      ? `Fond ${fmtDH(f.fondInitial)} + Ventes ${fmtDH(f.totalVentes||0)} = ${fmtDH(f.totalTheorique||0)}`
+      : `Théorique ${fmtDH(f.totalTheorique||0)}`;
+    const achatsHtml = f.achats && f.achats.length > 0
+      ? `<div style="font-size:11px;color:var(--danger);margin-top:2px;">🛒 ${f.achats.map(a=>`${a.fournisseur||'?'} −${fmtDH(a.montant||0)}`).join(' · ')} → Ajusté ${fmtDH(f.theoriqueAjuste||0)}</div>`
+      : '';
+    const noteLine = f.note ? `<div style="font-size:11px;color:var(--text3);font-style:italic;margin-top:1px;">📝 ${f.note}</div>` : '';
+    return `<div style="border-top:0.5px solid var(--border);margin-top:8px;padding-top:8px;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
+        <div style="flex:1;">
+          <div style="font-size:12px;font-weight:600;">🔒 Fermeture · ${new Date(f.date).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;">${fondLine}</div>
+          ${achatsHtml}
+          <div style="font-size:11px;color:var(--text3);margin-top:1px;">Compté ${fmtDH(f.montantCompte||0)}</div>
+          ${noteLine}
+        </div>
+        <span style="font-size:13px;font-weight:700;color:${ecartColor};white-space:nowrap;">${ecartIcon} ${sign}${fmtDH(ecart)}</span>
+      </div>
+    </div>`;
   }).join('');
 }
 
@@ -2386,26 +2455,122 @@ window.toggleCaisseFerm=function(){caisseFermOpen=!caisseFermOpen;renderCaisse()
 
 // ==================== FERMETURE DE CAISSE ====================
 
+// Achats en cours de saisie dans le modal (accessible depuis les handlers inline)
+window.fermetureAchats = [];
+
+// Calcule le fond initial = montantCompte de la dernière fermeture enregistrée
+function _getFondInitial() {
+  if (!DB.fermetures || DB.fermetures.length === 0) return 0;
+  const sorted = [...DB.fermetures].sort((a, b) => new Date(a.date) - new Date(b.date));
+  return sorted[sorted.length - 1].montantCompte || 0;
+}
+
+// Retourne tous les noms de fournisseurs déjà utilisés (pour autocomplétion)
+function _getFournisseursSuggestions() {
+  if (!DB.fermetures) return [];
+  const noms = DB.fermetures.flatMap(f => (f.achats || []).map(a => a.fournisseur).filter(Boolean));
+  return [...new Set(noms)].sort();
+}
+
+// Met à jour uniquement les totaux (sans reconstruire les inputs — évite la perte de focus)
+window._updateFermetureTotaux = function _updateFermetureTotaux() {
+  const totalAchats = fermetureAchats.reduce((s, a) => s + (parseFloat(a.montant) || 0), 0);
+  const totEl = document.getElementById('fermeture-achats-total');
+  if (!totEl) return;
+  if (totalAchats > 0) {
+    totEl.style.display = 'block';
+    document.getElementById('fermeture-achats-total-val').textContent = fmtDH(totalAchats);
+    const fondInitial = _getFondInitial();
+    const ventesJour = getVentesForDate(fmtDate(new Date()));
+    const totalVentes = ventesJour.reduce((s, v) => s + v.qty * v.prixUnit, 0);
+    const ajuste = fondInitial + totalVentes - totalAchats;
+    const ajusteBox = document.getElementById('fermeture-ajuste-box');
+    ajusteBox.style.display = 'block';
+    document.getElementById('fermeture-ajuste-val').textContent = fmtDH(ajuste);
+  } else {
+    totEl.style.display = 'none';
+    document.getElementById('fermeture-ajuste-box').style.display = 'none';
+  }
+}
+
+// Rafraîchit l'affichage de la liste des achats dans le modal (reconstruit les lignes)
+window.renderFermetureAchats = function() {
+  const list = document.getElementById('fermeture-achats-list');
+  if (!list) return;
+
+  // Mettre à jour le datalist fournisseurs
+  const dl = document.getElementById('fournisseurs-suggestions');
+  if (dl) dl.innerHTML = _getFournisseursSuggestions().map(f => `<option value="${f.replace(/"/g,'&quot;')}">`).join('');
+
+  if (fermetureAchats.length === 0) {
+    list.innerHTML = '';
+    document.getElementById('fermeture-achats-total').style.display = 'none';
+    document.getElementById('fermeture-ajuste-box').style.display = 'none';
+    updateFermetureEcart();
+    return;
+  }
+
+  list.innerHTML = fermetureAchats.map((a, i) => `
+    <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
+      <input class="input" style="flex:1;font-size:13px;" placeholder="Fournisseur"
+             value="${(a.fournisseur||'').replace(/"/g,'&quot;')}"
+             list="fournisseurs-suggestions"
+             oninput="fermetureAchats[${i}].fournisseur=this.value;">
+      <div style="position:relative;flex-shrink:0;width:110px;">
+        <input class="input" type="number" style="padding-right:28px;font-size:13px;"
+               placeholder="0.00" step="0.01" min="0" value="${a.montant||''}"
+               oninput="fermetureAchats[${i}].montant=this.value;_updateFermetureTotaux();updateFermetureEcart();">
+        <span style="position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--text3);pointer-events:none;">DH</span>
+      </div>
+      <button onclick="fermetureRemoveAchat(${i})" style="background:none;border:none;color:var(--danger);font-size:17px;cursor:pointer;padding:2px 6px;flex-shrink:0;">✕</button>
+    </div>`).join('');
+
+  _updateFermetureTotaux();
+  updateFermetureEcart();
+};
+
+window.fermetureAddAchat = function() {
+  fermetureAchats.push({ fournisseur: '', montant: '' });
+  renderFermetureAchats();
+};
+
+window.fermetureRemoveAchat = function(idx) {
+  fermetureAchats.splice(idx, 1);
+  renderFermetureAchats();
+};
+
 // Ouvre le modal et pré-remplit les données du jour
 window.openModal_fermeture_setup = function() {
   const now = new Date();
   const todayStr = fmtDate(now);
   const ventesJour = getVentesForDate(todayStr);
-  const totalTheorique = ventesJour.reduce((s,v) => s + v.qty * v.prixUnit, 0);
-  const nbArticles = ventesJour.reduce((s,v) => s + v.qty, 0);
+  const totalVentes = ventesJour.reduce((s, v) => s + v.qty * v.prixUnit, 0);
+  const nbArticles = ventesJour.reduce((s, v) => s + v.qty, 0);
+  const fondInitial = _getFondInitial();
+  const totalTheorique = fondInitial + totalVentes;
 
   document.getElementById('fermeture-date-label').textContent =
     now.toLocaleDateString('fr-FR', {weekday:'long', day:'2-digit', month:'long', year:'numeric'}) +
     ' — ' + now.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
+  document.getElementById('fermeture-fond-initial').textContent = fmtDH(fondInitial);
+  document.getElementById('fermeture-ventes-jour').textContent = fmtDH(totalVentes);
   document.getElementById('fermeture-total-theorique').textContent = fmtDH(totalTheorique);
   document.getElementById('fermeture-nb-ventes').textContent =
-    nbArticles > 0 ? `${nbArticles} article(s) vendu(s) en ${ventesJour.length} transaction(s)` : 'Aucune vente enregistrée aujourd\'hui';
+    nbArticles > 0
+      ? `${nbArticles} article(s) vendu(s) en ${ventesJour.length} transaction(s)`
+      : 'Aucune vente enregistrée aujourd\'hui';
+
+  // Reset achats
+  window.fermetureAchats = [];
+  renderFermetureAchats();
+
   document.getElementById('fermeture-montant').value = '';
   document.getElementById('fermeture-note').value = '';
+
   // Reset écart
   const box = document.getElementById('fermeture-ecart-box');
-  box.className = 'fermeture-ecart-box';
-  box.style = 'border-radius:var(--radius-sm);padding:12px;margin-bottom:14px;border:1.5px solid var(--border);';
+  box.style.borderColor = 'var(--border)';
+  box.style.background = '';
   document.getElementById('fermeture-ecart-val').textContent = '—';
   document.getElementById('fermeture-ecart-val').style.color = 'var(--text2)';
   document.getElementById('fermeture-ecart-hint').textContent = 'Saisissez le montant compté pour calculer l\'écart';
@@ -2413,9 +2578,13 @@ window.openModal_fermeture_setup = function() {
 
 // Mise à jour dynamique de l'écart quand l'utilisateur tape le montant
 window.updateFermetureEcart = function() {
-  const todayStr = fmtDate(new Date());
-  const ventesJour = getVentesForDate(todayStr);
-  const totalTheorique = ventesJour.reduce((s,v) => s + v.qty * v.prixUnit, 0);
+  const fondInitial = _getFondInitial();
+  const ventesJour = getVentesForDate(fmtDate(new Date()));
+  const totalVentes = ventesJour.reduce((s, v) => s + v.qty * v.prixUnit, 0);
+  const totalTheorique = fondInitial + totalVentes;
+  const totalAchats = fermetureAchats.reduce((s, a) => s + (parseFloat(a.montant) || 0), 0);
+  const theoriqueAjuste = totalTheorique - totalAchats;
+
   const montantVal = document.getElementById('fermeture-montant').value;
   const box = document.getElementById('fermeture-ecart-box');
   const ecartEl = document.getElementById('fermeture-ecart-val');
@@ -2426,29 +2595,28 @@ window.updateFermetureEcart = function() {
     box.style.background = '';
     ecartEl.textContent = '—';
     ecartEl.style.color = 'var(--text2)';
-    hintEl.textContent = 'Saisissez le montant compté pour calculer l\'écart';
+    hintEl.textContent = totalAchats > 0
+      ? `Théorique ajusté : ${fmtDH(theoriqueAjuste)} — Saisissez le montant compté`
+      : 'Saisissez le montant compté pour calculer l\'écart';
     return;
   }
 
   const montant = parseFloat(montantVal);
-  const ecart = montant - totalTheorique;
+  const ecart = montant - theoriqueAjuste;
   const sign = ecart >= 0 ? '+' : '';
   ecartEl.textContent = sign + fmtDH(ecart);
 
   if (Math.abs(ecart) < 0.01) {
-    // Parfait équilibre
     box.style.borderColor = 'var(--green)';
     box.style.background = 'var(--green-light)';
     ecartEl.style.color = 'var(--green)';
     hintEl.textContent = '✅ Caisse parfaitement équilibrée';
   } else if (Math.abs(ecart) <= 10) {
-    // Petit écart tolérable
     box.style.borderColor = 'var(--amber)';
     box.style.background = 'var(--amber-light)';
     ecartEl.style.color = 'var(--amber)';
     hintEl.textContent = ecart > 0 ? '⚠️ Surplus en caisse' : '⚠️ Manque en caisse';
   } else {
-    // Écart important
     box.style.borderColor = 'var(--danger)';
     box.style.background = '#fff0f0';
     ecartEl.style.color = 'var(--danger)';
@@ -2468,12 +2636,22 @@ window.saveFermeture = async function() {
   const now = new Date();
   const todayStr = fmtDate(now);
   const ventesJour = getVentesForDate(todayStr);
-  const totalTheorique = ventesJour.reduce((s,v) => s + v.qty * v.prixUnit, 0);
-  const ecart = montant - totalTheorique;
+  const totalVentes = ventesJour.reduce((s, v) => s + v.qty * v.prixUnit, 0);
+  const fondInitial = _getFondInitial();
+  const totalTheorique = fondInitial + totalVentes;
+  const achatsValides = fermetureAchats.filter(a => parseFloat(a.montant) > 0);
+  const totalAchats = achatsValides.reduce((s, a) => s + (parseFloat(a.montant) || 0), 0);
+  const theoriqueAjuste = totalTheorique - totalAchats;
+  const ecart = montant - theoriqueAjuste;
 
   await pushToFirebase('fermetures', {
     date: now.toISOString(),
+    fondInitial,
+    totalVentes,
     totalTheorique,
+    achats: achatsValides.map(a => ({ fournisseur: a.fournisseur || '', montant: parseFloat(a.montant) || 0 })),
+    totalAchats,
+    theoriqueAjuste,
     montantCompte: montant,
     ecart,
     note: note || '',
