@@ -1940,7 +1940,7 @@ window.posSelectCategory=function(cat){
 };
 
 function posRenderProducts(cat){
-  const prods=DB.recettes.filter(r=>!isRecetteAddon(r)&&!isIngredientMaison(r)&&(r.cat||'Sans catégorie')===cat).sort((a,b)=>a.nom>b.nom?1:-1);
+  const prods=DB.recettes.filter(r=>!isRecetteAddon(r)&&!isIngredientMaison(r)&&(r.cat||'Sans catégorie')===cat).sort((a,b)=>(a.prix||0)-(b.prix||0));
   const esc=cat.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
   document.getElementById('pos-breadcrumb').innerHTML=`<button class="pos-back-btn" onclick="posRenderCategories()">← Catégories</button><span class="pos-step-label">${cat}</span>`;
   document.getElementById('pos-content').innerHTML=`<div class="produit-grid">${
@@ -2148,6 +2148,31 @@ window.posShowCart=function(){
     </div>`).join('')}
     <div style="padding-top:12px;display:flex;justify-content:space-between;font-size:15px;font-weight:700;border-top:1px solid var(--border);">
       <span>Total</span><span style="color:var(--accent);">${fmtDH(total)}</span>
+    </div>
+    <div style="margin-top:14px;padding:12px;background:var(--surface2);border-radius:var(--radius);border:0.5px solid var(--border);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="font-size:12px;font-weight:600;color:var(--text2);">💵 Montant remis par le client</span>
+        <button onclick="posClearMonnaie()" style="font-size:10px;color:var(--text3);background:none;border:none;cursor:pointer;padding:2px 6px;border-radius:4px;">✕ Effacer</button>
+      </div>
+      <div style="display:flex;gap:6px;margin-bottom:8px;">
+        <button onclick="posAddMonnaie(20)" class="btn btn-secondary" style="flex:1;font-size:13px;font-weight:700;padding:7px 4px;">20</button>
+        <button onclick="posAddMonnaie(50)" class="btn btn-secondary" style="flex:1;font-size:13px;font-weight:700;padding:7px 4px;">50</button>
+        <button onclick="posAddMonnaie(100)" class="btn btn-secondary" style="flex:1;font-size:13px;font-weight:700;padding:7px 4px;">100</button>
+        <button onclick="posAddMonnaie(200)" class="btn btn-secondary" style="flex:1;font-size:13px;font-weight:700;padding:7px 4px;">200</button>
+      </div>
+      <input class="input" id="pos-monnaie-input" type="number" placeholder="Ou saisir un montant..." step="0.5" min="0" oninput="posUpdateMonnaie()" style="font-size:15px;font-weight:600;text-align:right;">
+      <div id="pos-monnaie-result" style="margin-top:8px;display:none;border-radius:var(--radius-sm);padding:10px 12px;background:var(--green-light);border:1.5px solid var(--green);display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:12px;color:var(--text2);">Monnaie à rendre</span>
+          <span style="font-size:20px;font-weight:700;color:var(--green);" id="pos-monnaie-val">0,00 DH</span>
+        </div>
+      </div>
+      <div id="pos-monnaie-insuf" style="margin-top:8px;display:none;border-radius:var(--radius-sm);padding:10px 12px;background:#fff0f0;border:1.5px solid var(--danger);">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:12px;color:var(--danger);font-weight:600;">Montant insuffisant</span>
+          <span style="font-size:14px;font-weight:700;color:var(--danger);" id="pos-monnaie-manque"></span>
+        </div>
+      </div>
     </div>`;
 };
 
@@ -2157,6 +2182,44 @@ window.posCartQty=function(idx,delta){
   if(posCart[idx].qty===0)posCart.splice(idx,1);
   posUpdateCartBar();
   window.posShowCart();
+};
+
+window.posAddMonnaie=function(val){
+  const input=document.getElementById('pos-monnaie-input');
+  if(!input)return;
+  input.value=(parseFloat(input.value)||0)+val;
+  posUpdateMonnaie();
+};
+
+window.posClearMonnaie=function(){
+  const input=document.getElementById('pos-monnaie-input');
+  if(input)input.value='';
+  const r=document.getElementById('pos-monnaie-result');
+  const i=document.getElementById('pos-monnaie-insuf');
+  if(r)r.style.display='none';
+  if(i)i.style.display='none';
+};
+
+window.posUpdateMonnaie=function(){
+  const input=document.getElementById('pos-monnaie-input');
+  const resDiv=document.getElementById('pos-monnaie-result');
+  const insufDiv=document.getElementById('pos-monnaie-insuf');
+  const valEl=document.getElementById('pos-monnaie-val');
+  const manqueEl=document.getElementById('pos-monnaie-manque');
+  if(!input||!resDiv||!insufDiv)return;
+  const given=parseFloat(input.value)||0;
+  if(given<=0){resDiv.style.display='none';insufDiv.style.display='none';return;}
+  const total=posCart.reduce((s,i)=>s+i.qty*i.prixUnit,0);
+  const change=given-total;
+  if(change>=0){
+    resDiv.style.display='block';
+    insufDiv.style.display='none';
+    if(valEl)valEl.textContent=fmtDH(change);
+  } else {
+    resDiv.style.display='none';
+    insufDiv.style.display='block';
+    if(manqueEl)manqueEl.textContent='Manque '+fmtDH(Math.abs(change));
+  }
 };
 
 window.saveVente=async function(){
