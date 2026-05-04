@@ -499,6 +499,35 @@ body{font-family:-apple-system,'SF Pro Text','Helvetica Neue',sans-serif;backgro
   </div>
 </div>
 
+<!-- ── MODAL COMBO ── -->
+<div class="modal-overlay" id="modal-combo">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="card-title" style="margin-bottom:12px;" id="modal-combo-title">Nouveau combo</div>
+    <div class="label">Nom du combo</div>
+    <input class="input" id="c-nom" placeholder="Ex: Menu Goûter" style="margin-bottom:10px;">
+    <div class="label">Catégorie</div>
+    <input class="input" id="c-cat" placeholder="Ex: Combos" list="combo-cat-suggestions" style="margin-bottom:10px;">
+    <datalist id="combo-cat-suggestions"></datalist>
+    <div class="label">Prix unique du menu (DH)</div>
+    <div style="position:relative;margin-bottom:10px;">
+      <input class="input" id="c-prix" type="number" placeholder="0.00" step="0.01" style="padding-right:36px;" oninput="updateComboPriceHint()">
+      <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--text3);font-weight:600;">DH</span>
+    </div>
+    <div id="c-prix-hint" style="font-size:11px;color:var(--text3);margin-top:-6px;margin-bottom:10px;"></div>
+    <div class="label">Image (optionnel)</div>
+    <input class="input" id="c-image" placeholder="URL ou data:image/..." style="margin-bottom:10px;">
+    <div class="label">Choix possibles dans le menu</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:8px;background:var(--surface2);padding:6px 8px;border-radius:6px;">💡 Chaque <strong>choix</strong> est un emplacement dans le menu (ex: « Boisson », « Gauffre »). Pour chaque emplacement, cochez tous les produits que le client peut choisir.</div>
+    <div id="c-slots-list" style="margin-bottom:8px;"></div>
+    <button class="btn btn-secondary" style="margin-bottom:12px;" onclick="addSlotLine()">+ Ajouter un choix</button>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-secondary" onclick="closeModal('modal-combo')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveCombo()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-inventaire">
   <div class="modal">
     <div class="modal-handle"></div>
@@ -759,7 +788,7 @@ const MOIS_SHORT=['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Aoû','Sep','Oct
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400);}
 
 // ==================== STATE ====================
-let DB={recettes:[],matieres:{},stock:{},stockPrev:{},stockPrevDate:null,stockInitDate:null,inventaires:[],historique:[],ventes:[],prixMatieres:{},seuilsCommande:{},chargesFixes:[],chargesVariables:[],chargesExceptionnelles:[],sauvegardes:[],dateLancement:null,pertTheorique:0,commandes:[],fermetures:[]};
+let DB={recettes:[],combos:[],matieres:{},stock:{},stockPrev:{},stockPrevDate:null,stockInitDate:null,inventaires:[],historique:[],ventes:[],prixMatieres:{},seuilsCommande:{},chargesFixes:[],chargesVariables:[],chargesExceptionnelles:[],sauvegardes:[],dateLancement:null,pertTheorique:0,commandes:[],fermetures:[]};
 let currentUser=null, userRole=null, unsubscribe=null;
 
 // ==================== AUTH ====================
@@ -842,6 +871,7 @@ function startFirebaseSync(){
   unsubscribe=onValue(dbRef,snapshot=>{
     const data=snapshot.val()||{};
     DB.recettes=data.recettes?Object.values(data.recettes):[];
+    DB.combos=data.combos?Object.values(data.combos):[];
     DB.matieres=data.matieres||{};
     DB.stock=data.stock||{};
     DB.stockPrev=data.stockPrev||{};
@@ -994,6 +1024,10 @@ document.getElementById('ch-type').addEventListener('change', window.onChargeTyp
 
 // ==================== RECETTES ====================
 let editingRecetteIdx=null, activeCatFilter='all', activeRecetteView='produits';
+// Recettes : affichage des détails (recettes/ingrédients) masqué par défaut
+let recettesShowDetails=false;
+// Recettes : liste des matières premières repliée par défaut
+let recettesMpOpen=false;
 // Détermine si une recette EST un Topping (add-on de type topping)
 function isRecetteTopping(r){
   const c=(r.cat||'').toLowerCase().trim();
@@ -1184,14 +1218,30 @@ window.saveRecette=async function(){
 
 function renderRecettes(){
   const c=document.getElementById('recettes-content');const isMaitre=userRole==='maitre';
+  // Adapter le bouton d'ajout selon la vue active
+  const addBtnWrap=document.getElementById('btn-add-recette-wrap');
+  if(addBtnWrap){
+    if(activeRecetteView==='combos'){
+      addBtnWrap.innerHTML=`<button class="btn btn-primary" onclick="openComboModal()" style="background:#E66B3D;border-color:#E66B3D;">+ Nouveau combo</button>`;
+    } else {
+      addBtnWrap.innerHTML=`<button class="btn btn-primary" onclick="openModal('modal-recette')">+ Nouvelle recette</button>`;
+    }
+  }
+
+  // Vue Combos
+  if(activeRecetteView==='combos'){
+    renderCombosView();
+    return;
+  }
 
   // Vue Ingrédients Maison
   if(activeRecetteView==='ingredientsMaison'){
     const imRecettes=DB.recettes.filter(r=>isIngredientMaison(r));
     const viewToggle=`<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
-      <button onclick="setRecetteView('produits')" class="btn btn-secondary" style="flex:1;font-size:12px;min-width:80px;">🧁 Produits</button>
-      <button onclick="setRecetteView('toppings')" class="btn btn-secondary" style="flex:1;font-size:12px;min-width:80px;">🧂 Toppings</button>
-      <button onclick="setRecetteView('ingredientsMaison')" class="btn btn-purple" style="flex:1;font-size:12px;min-width:80px;">🏠 Ingr. Maison</button>
+      <button onclick="setRecetteView('produits')" class="btn btn-secondary" style="flex:1;font-size:12px;min-width:70px;">🧁 Produits</button>
+      <button onclick="setRecetteView('toppings')" class="btn btn-secondary" style="flex:1;font-size:12px;min-width:70px;">🧂 Toppings</button>
+      <button onclick="setRecetteView('combos')" class="btn btn-secondary" style="flex:1;font-size:12px;min-width:70px;">🍱 Combos</button>
+      <button onclick="setRecetteView('ingredientsMaison')" class="btn btn-purple" style="flex:1;font-size:12px;min-width:70px;">🏠 Ingr. Maison</button>
     </div>`;
     const cardsIM=imRecettes.length===0?`<div class="empty-state"><div class="empty-icon">🏠</div>Aucun Ingrédient Maison<br><span style="font-size:12px;">Créez une recette en cochant "Ingrédient Maison"</span></div>`:
       imRecettes.map(r=>{const i=DB.recettes.indexOf(r);
@@ -1208,12 +1258,13 @@ function renderRecettes(){
               ${isMaitre?`<button onclick="editRecette(${i})" style="background:var(--blue-light);border:none;color:var(--blue);font-size:12px;padding:4px 8px;border-radius:6px;cursor:pointer;">✏️</button><button onclick="deleteRecette(${i})" style="background:none;border:none;font-size:16px;cursor:pointer;color:var(--text3);">×</button>`:''}
             </div>
           </div>
-          <div class="card-body" style="padding:8px 14px;">
+          ${recettesShowDetails?`<div class="card-body" style="padding:8px 14px;">
             <div style="font-size:11px;color:var(--text3);font-weight:600;margin-bottom:4px;">Composants pour ${r.mesureProduite||'?'} ${r.uniteProduite||''} :</div>
             ${(r.ingredients||[]).sort((a,b)=>a.name>b.name?1:-1).map(ing=>`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px;border-bottom:0.5px solid var(--border);"><span>${ing.name}</span><span style="color:var(--text3);">${ing.qty} ${ing.unit}</span></div>`).join('')}
-          </div>
+          </div>`:''}
         </div>`;}).join('');
-    c.innerHTML=viewToggle+cardsIM;
+    const detailsToggleIM=`<button class="btn btn-secondary" onclick="toggleRecettesDetails()" style="margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;width:100%;"><span>${recettesShowDetails?'👁️ Masquer les recettes':'👁️‍🗨️ Afficher les recettes'}</span><span style="font-size:11px;color:var(--text3);">${recettesShowDetails?'(détaillé)':'(compact)'}</span></button>`;
+    c.innerHTML=viewToggle+detailsToggleIM+cardsIM;
     return;
   }
 
@@ -1227,18 +1278,287 @@ function renderRecettes(){
   const mpAgg={};viewPool.forEach(r=>{if(!r.ingredients)return;r.ingredients.forEach(ing=>{const k=ing.name.trim();if(!mpAgg[k])mpAgg[k]={unit:ing.unit,recettes:[]};mpAgg[k].recettes.push(r.nom);});});
   const mpSorted=Object.entries(mpAgg).sort((a,b)=>a[0]>b[0]?1:-1);
   const viewToggle=`<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
-    <button onclick="setRecetteView('produits')" class="btn ${activeRecetteView==='produits'?'btn-primary':'btn-secondary'}" style="flex:1;font-size:12px;min-width:80px;">🧁 Produits</button>
-    <button onclick="setRecetteView('toppings')" class="btn ${activeRecetteView==='toppings'?'btn-primary':'btn-secondary'}" style="flex:1;font-size:12px;min-width:80px;">🧂 Toppings</button>
-    <button onclick="setRecetteView('ingredientsMaison')" class="btn btn-secondary" style="flex:1;font-size:12px;min-width:80px;">🏠 Ingr. Maison</button>
+    <button onclick="setRecetteView('produits')" class="btn ${activeRecetteView==='produits'?'btn-primary':'btn-secondary'}" style="flex:1;font-size:12px;min-width:70px;">🧁 Produits</button>
+    <button onclick="setRecetteView('toppings')" class="btn ${activeRecetteView==='toppings'?'btn-primary':'btn-secondary'}" style="flex:1;font-size:12px;min-width:70px;">🧂 Toppings</button>
+    <button onclick="setRecetteView('combos')" class="btn btn-secondary" style="flex:1;font-size:12px;min-width:70px;">🍱 Combos</button>
+    <button onclick="setRecetteView('ingredientsMaison')" class="btn btn-secondary" style="flex:1;font-size:12px;min-width:70px;">🏠 Ingr. Maison</button>
   </div>`;
-  c.innerHTML=viewToggle+`
+  const detailsToggle=`<button class="btn btn-secondary" onclick="toggleRecettesDetails()" style="margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;width:100%;"><span>${recettesShowDetails?'👁️ Masquer les recettes':'👁️‍🗨️ Afficher les recettes'}</span><span style="font-size:11px;color:var(--text3);">${recettesShowDetails?'(détaillé)':'(compact)'}</span></button>`;
+  const mpChevron=recettesMpOpen?'⌄':'›';
+  const mpBtn=`<button class="btn btn-secondary" onclick="toggleRecettesMp()" style="margin-bottom:${recettesMpOpen?'10':'4'}px;display:flex;justify-content:space-between;align-items:center;width:100%;"><span>📦 Matières premières</span><span style="display:flex;align-items:center;gap:6px;">${mpSorted.length>0?`<span class="badge badge-blue">${mpSorted.length}</span>`:''}<span style="font-size:18px;line-height:1;">${mpChevron}</span></span></button>`;
+  const mpBody=recettesMpOpen?`<div class="card"><div class="card-body">${mpSorted.length===0?'<div style="color:var(--text3);font-size:12px;">Aucune</div>':mpSorted.map(([name,m])=>`<div class="list-item"><div><div class="list-name">${name}</div><div class="list-sub">${m.unit} · ${[...new Set(m.recettes)].sort().join(', ')}</div></div><span class="badge badge-blue">${(DB.stock[name]||0).toFixed(2)}</span></div>`).join('')}</div></div>`:'';
+  c.innerHTML=viewToggle+detailsToggle+`
     <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">${cats.map(cat=>`<span class="cat-chip ${activeCatFilter===cat?'active':''}" onclick="setCatFilter('${cat}')">${cat==='all'?'Tous':cat}</span>`).join('')}</div>
     ${filtered.length===0?`<div class="empty-state"><div class="empty-icon">📋</div>Aucune recette</div>`:
-      filtered.map(r=>{const i=DB.recettes.indexOf(r);return`<div class="card"><div class="card-header"><div><div style="font-size:10px;color:var(--text3);margin-bottom:2px;">${r.cat||'Sans catégorie'}${r.supplementEligible?` <span style="background:var(--amber-light);color:var(--amber);font-size:9px;padding:1px 5px;border-radius:4px;margin-left:4px;">+Supplément</span>`:''}${r.toppingEligible?` <span style="background:var(--blue-light);color:var(--blue);font-size:9px;padding:1px 5px;border-radius:4px;margin-left:4px;">+Topping</span>`:''}</div><div style="display:flex;align-items:center;gap:8px;">${r.image?`<img src="${r.image}" style="width:36px;height:36px;object-fit:cover;border-radius:8px;flex-shrink:0;">`:`<div style="width:36px;height:36px;border-radius:8px;background:var(--surface2);flex-shrink:0;"></div>`}<div class="card-title">${r.nom}</div></div></div><div style="display:flex;align-items:center;gap:6px;"><span class="badge badge-green">${fmtDH(r.prix)}</span>${isMaitre?`<button onclick="duplicateRecette(${i})" title="Dupliquer" style="background:var(--accent-light);border:none;color:var(--accent);font-size:12px;padding:4px 8px;border-radius:6px;cursor:pointer;">📋</button><button onclick="editRecette(${i})" style="background:var(--blue-light);border:none;color:var(--blue);font-size:12px;padding:4px 8px;border-radius:6px;cursor:pointer;">✏️</button><button onclick="deleteRecette(${i})" style="background:none;border:none;font-size:16px;cursor:pointer;color:var(--text3);">×</button>`:''}</div></div><div class="card-body" style="padding:8px 14px;">${(r.ingredients||[]).sort((a,b)=>a.name>b.name?1:-1).map(ing=>`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px;border-bottom:0.5px solid var(--border);"><span>${ing.name}${ing.cat?` <span style="color:var(--text3);font-size:10px;">(${ing.cat})</span>`:''}</span><span style="color:var(--text3);">${ing.qty} ${ing.unit}</span></div>`).join('')}</div></div>`;}).join('')}
-    <div class="section-title">Matières premières — ${mpSorted.length} unique(s)</div>
-    <div class="card"><div class="card-body">${mpSorted.length===0?'<div style="color:var(--text3);font-size:12px;">Aucune</div>':mpSorted.map(([name,m])=>`<div class="list-item"><div><div class="list-name">${name}</div><div class="list-sub">${m.unit} · ${[...new Set(m.recettes)].sort().join(', ')}</div></div><span class="badge badge-blue">${(DB.stock[name]||0).toFixed(2)}</span></div>`).join('')}</div></div>`;
+      filtered.map(r=>{const i=DB.recettes.indexOf(r);return`<div class="card"><div class="card-header"><div><div style="font-size:10px;color:var(--text3);margin-bottom:2px;">${r.cat||'Sans catégorie'}${r.supplementEligible?` <span style="background:var(--amber-light);color:var(--amber);font-size:9px;padding:1px 5px;border-radius:4px;margin-left:4px;">+Supplément</span>`:''}${r.toppingEligible?` <span style="background:var(--blue-light);color:var(--blue);font-size:9px;padding:1px 5px;border-radius:4px;margin-left:4px;">+Topping</span>`:''}</div><div style="display:flex;align-items:center;gap:8px;">${r.image?`<img src="${r.image}" style="width:36px;height:36px;object-fit:cover;border-radius:8px;flex-shrink:0;">`:`<div style="width:36px;height:36px;border-radius:8px;background:var(--surface2);flex-shrink:0;"></div>`}<div class="card-title">${r.nom}</div></div></div><div style="display:flex;align-items:center;gap:6px;"><span class="badge badge-green">${fmtDH(r.prix)}</span>${isMaitre?`<button onclick="duplicateRecette(${i})" title="Dupliquer" style="background:var(--accent-light);border:none;color:var(--accent);font-size:12px;padding:4px 8px;border-radius:6px;cursor:pointer;">📋</button><button onclick="editRecette(${i})" style="background:var(--blue-light);border:none;color:var(--blue);font-size:12px;padding:4px 8px;border-radius:6px;cursor:pointer;">✏️</button><button onclick="deleteRecette(${i})" style="background:none;border:none;font-size:16px;cursor:pointer;color:var(--text3);">×</button>`:''}</div></div>${recettesShowDetails?`<div class="card-body" style="padding:8px 14px;">${(r.ingredients||[]).sort((a,b)=>a.name>b.name?1:-1).map(ing=>`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px;border-bottom:0.5px solid var(--border);"><span>${ing.name}${ing.cat?` <span style="color:var(--text3);font-size:10px;">(${ing.cat})</span>`:''}</span><span style="color:var(--text3);">${ing.qty} ${ing.unit}</span></div>`).join('')}</div>`:''}</div>`;}).join('')}
+    ${mpBtn}${mpBody}`;
 }
 window.setCatFilter=function(cat){activeCatFilter=cat;renderRecettes();};
+window.toggleRecettesDetails=function(){recettesShowDetails=!recettesShowDetails;renderRecettes();};
+window.toggleRecettesMp=function(){recettesMpOpen=!recettesMpOpen;renderRecettes();};
+
+// ==================== COMBOS ====================
+let editingComboIdx=null;
+let _comboDraft=[]; // [{label:'Boisson', options:[recetteId,...]}]
+
+// Migration : convertit l'ancien format (composants) vers le nouveau (slots)
+function _migrateCombo(c){
+  if(!c)return c;
+  if(Array.isArray(c.slots)&&c.slots.length>0)return c; // déjà nouveau format
+  if(Array.isArray(c.composants)&&c.composants.length>0){
+    return {...c,slots:c.composants.map(co=>{
+      const r=DB.recettes.find(x=>x.id===co.recetteId);
+      return {label:r?r.nom:'Composant',options:[co.recetteId]};
+    })};
+  }
+  return {...c,slots:[]};
+}
+
+function refreshComboCatSuggestions(){
+  const cats=[...new Set((DB.combos||[]).map(c=>c.cat).filter(Boolean))];
+  const dl=document.getElementById('combo-cat-suggestions');
+  if(dl)dl.innerHTML=cats.map(c=>`<option value="${c}">`).join('');
+}
+
+function _comboPriceRange(){
+  let minSum=0,maxSum=0,hasOptions=false;
+  _comboDraft.forEach(s=>{
+    const prices=(s.options||[]).map(id=>{const r=DB.recettes.find(x=>x.id===id);return r?r.prix:0;});
+    if(prices.length===0)return;
+    hasOptions=true;
+    minSum+=Math.min(...prices);
+    maxSum+=Math.max(...prices);
+  });
+  return hasOptions?{min:minSum,max:maxSum}:null;
+}
+
+window.updateComboPriceHint=function(){
+  const range=_comboPriceRange();
+  const prix=parseFloat(document.getElementById('c-prix').value)||0;
+  const hint=document.getElementById('c-prix-hint');
+  if(!hint)return;
+  if(!range||range.max===0){hint.textContent='';return;}
+  const baseLabel=range.min===range.max?fmtDH(range.min):fmtDH(range.min)+' à '+fmtDH(range.max);
+  if(prix===0){hint.innerHTML=`💡 Prix base (selon les choix) : <strong>${baseLabel}</strong>`;return;}
+  const ecoMin=range.min-prix;
+  const ecoMax=range.max-prix;
+  if(ecoMax<0)hint.innerHTML=`⚠️ Le menu coûte <strong style="color:var(--danger);">${fmtDH(-ecoMax)} à ${fmtDH(-ecoMin)}</strong> de plus que la base (${baseLabel})`;
+  else if(ecoMin>0)hint.innerHTML=`✅ Économie client : <strong style="color:var(--accent);">${fmtDH(ecoMin)} à ${fmtDH(ecoMax)}</strong> selon les choix (base ${baseLabel})`;
+  else hint.innerHTML=`Économie variable : <strong>${ecoMin>=0?'+':'-'}${fmtDH(Math.abs(ecoMin))} à +${fmtDH(ecoMax)}</strong> (base ${baseLabel})`;
+};
+
+// Construit une map {recetteId: {slotIdx, slotLabel}} des produits déjà utilisés dans d'autres slots
+function _comboUsedElsewhere(currentSlotIdx){
+  const map={};
+  _comboDraft.forEach((sl,i)=>{
+    if(i===currentSlotIdx)return;
+    (sl.options||[]).forEach(id=>{if(!(id in map))map[id]={slotIdx:i,slotLabel:sl.label||('Choix '+(i+1))};});
+  });
+  return map;
+}
+
+function buildSlotLine(idx){
+  const s=_comboDraft[idx];
+  const produits=DB.recettes.filter(r=>!isRecetteAddon(r)&&!isIngredientMaison(r)).sort((a,b)=>a.nom>b.nom?1:-1);
+  const usedElsewhere=_comboUsedElsewhere(idx);
+  const byCat={};produits.forEach(r=>{const cat=r.cat||'Sans catégorie';if(!byCat[cat])byCat[cat]=[];byCat[cat].push(r);});
+  const cats=Object.keys(byCat).sort();
+  const optsHtml=cats.map(cat=>`<div style="font-size:10px;color:var(--text3);font-weight:600;margin:6px 0 2px;text-transform:uppercase;">${cat}</div>`+
+    byCat[cat].map(r=>{
+      const checked=(s.options||[]).includes(r.id);
+      const usedInfo=usedElsewhere[r.id];
+      const isUsedElsewhere=!!usedInfo&&!checked;
+      const opacity=isUsedElsewhere?'0.45':'1';
+      const cursor=isUsedElsewhere?'not-allowed':'pointer';
+      const usedTag=isUsedElsewhere?` <span style="font-size:9px;color:var(--danger);font-weight:600;">(déjà dans « ${(usedInfo.slotLabel||'?').replace(/"/g,'&quot;')} »)</span>`:'';
+      return `<label style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:12px;cursor:${cursor};opacity:${opacity};">
+        <input type="checkbox" ${checked?'checked':''} ${isUsedElsewhere?'disabled':''} onchange="toggleSlotOption(${idx},${r.id},this.checked)" style="width:16px;height:16px;flex-shrink:0;">
+        <span style="flex:1;">${r.nom} <span style="color:var(--text3);">(${fmtDH(r.prix)})</span>${usedTag}</span>
+      </label>`;
+    }).join('')
+  ).join('');
+  const nbSel=(s.options||[]).length;
+  return `<div style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:8px;background:var(--surface);">
+    <div style="display:flex;gap:6px;margin-bottom:6px;align-items:center;">
+      <span style="font-size:18px;flex-shrink:0;">📍</span>
+      <input class="input" placeholder="Nom du choix (ex: Boisson)" value="${(s.label||'').replace(/"/g,'&quot;')}" style="flex:1;padding:6px 8px;font-size:13px;" onchange="updateSlot(${idx},'label',this.value)">
+      <button onclick="removeSlot(${idx})" style="background:none;border:none;color:var(--danger);font-size:20px;cursor:pointer;padding:0 4px;">×</button>
+    </div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">Cochez les produits possibles pour ce choix :</div>
+    <div style="max-height:150px;overflow-y:auto;border:0.5px solid var(--border);border-radius:6px;padding:4px 8px;background:var(--surface2);">${optsHtml||'<div style="font-size:11px;color:var(--text3);padding:6px;">Aucun produit disponible</div>'}</div>
+    <div style="font-size:10px;color:${nbSel>0?'var(--accent)':'var(--danger)'};margin-top:4px;font-weight:600;">${nbSel===0?'⚠️ Aucune option cochée':nbSel===1?'1 option (choix figé)':nbSel+' options au choix'}</div>
+  </div>`;
+}
+
+window.addSlotLine=function(){
+  _comboDraft.push({label:'',options:[]});
+  document.getElementById('c-slots-list').innerHTML=_comboDraft.map((_,i)=>buildSlotLine(i)).join('');
+  updateComboPriceHint();
+};
+
+window.updateSlot=function(idx,field,val){
+  if(!_comboDraft[idx])return;
+  _comboDraft[idx][field]=val;
+};
+
+window.toggleSlotOption=function(slotIdx,recetteId,checked){
+  if(!_comboDraft[slotIdx])return;
+  // Garde-fou : si on tente d'ajouter un produit déjà présent dans un autre slot, refuser
+  if(checked){
+    const used=_comboUsedElsewhere(slotIdx);
+    if(used[recetteId]){
+      toast('⚠️ Ce produit est déjà dans « '+(used[recetteId].slotLabel||'?')+' »');
+      document.getElementById('c-slots-list').innerHTML=_comboDraft.map((_,i)=>buildSlotLine(i)).join('');
+      return;
+    }
+  }
+  const opts=_comboDraft[slotIdx].options||[];
+  const i=opts.indexOf(recetteId);
+  if(checked&&i===-1)opts.push(recetteId);
+  else if(!checked&&i!==-1)opts.splice(i,1);
+  _comboDraft[slotIdx].options=opts;
+  // Reconstruire toute la liste pour rafraîchir l'état désactivé des autres slots
+  document.getElementById('c-slots-list').innerHTML=_comboDraft.map((_,i)=>buildSlotLine(i)).join('');
+  updateComboPriceHint();
+};
+
+window.removeSlot=function(idx){
+  _comboDraft.splice(idx,1);
+  document.getElementById('c-slots-list').innerHTML=_comboDraft.map((_,i)=>buildSlotLine(i)).join('');
+  updateComboPriceHint();
+};
+
+window.editCombo=function(i){
+  editingComboIdx=i;
+  const c=_migrateCombo(DB.combos[i]);
+  document.getElementById('modal-combo-title').textContent='Modifier le menu';
+  document.getElementById('c-nom').value=c.nom||'';
+  document.getElementById('c-cat').value=c.cat||'Combos';
+  document.getElementById('c-prix').value=c.prix||'';
+  document.getElementById('c-image').value=c.image||'';
+  _comboDraft=(c.slots||[]).map(s=>({label:s.label||'',options:[...(s.options||[])]}));
+  document.getElementById('c-slots-list').innerHTML=_comboDraft.length>0
+    ?_comboDraft.map((_,i)=>buildSlotLine(i)).join('')
+    :'';
+  refreshComboCatSuggestions();
+  updateComboPriceHint();
+  document.getElementById('modal-combo').classList.add('open');
+};
+
+window.duplicateCombo=function(i){
+  const orig=_migrateCombo(DB.combos[i]);
+  const clone={...orig,id:Date.now(),nom:orig.nom+' (copie)',slots:(orig.slots||[]).map(s=>({label:s.label,options:[...(s.options||[])]}))};
+  delete clone.composants;
+  const newC=[...DB.combos,clone];
+  saveToFirebase('combos',newC.reduce((o,c,j)=>{o[j]=c;return o;},{}));
+  toast('✅ Menu dupliqué');
+};
+
+window.deleteCombo=async function(i){
+  if(!confirm('Supprimer ce menu ?'))return;
+  const newC=[...DB.combos];newC.splice(i,1);
+  await saveToFirebase('combos',newC.length?newC.reduce((o,c,j)=>{o[j]=c;return o;},{}):null);
+  toast('🗑️ Menu supprimé');
+};
+
+window.saveCombo=async function(){
+  const nom=document.getElementById('c-nom').value.trim();
+  const cat=document.getElementById('c-cat').value.trim()||'Combos';
+  const prix=parseFloat(document.getElementById('c-prix').value)||0;
+  const image=document.getElementById('c-image').value.trim();
+  if(!nom){toast('Saisis un nom');return;}
+  if(prix<=0){toast('Saisis un prix > 0');return;}
+  const slots=_comboDraft
+    .map(s=>({label:(s.label||'').trim(),options:(s.options||[]).filter(id=>DB.recettes.find(r=>r.id===id))}))
+    .filter(s=>s.options.length>0);
+  if(slots.length<2){toast('Un menu doit avoir au moins 2 choix avec au moins une option chacun');return;}
+  if(slots.some(s=>!s.label)){toast('Donne un nom à chaque choix (ex: Boisson, Gauffre)');return;}
+  const obj={
+    id:editingComboIdx!==null?DB.combos[editingComboIdx].id:Date.now(),
+    nom,cat,prix,image,slots
+  };
+  const newC=[...DB.combos];
+  if(editingComboIdx!==null)newC[editingComboIdx]=obj;else newC.push(obj);
+  await saveToFirebase('combos',newC.reduce((o,c,j)=>{o[j]=c;return o;},{}));
+  closeModal('modal-combo');
+  toast(editingComboIdx!==null?'✅ Menu modifié':'✅ Menu créé');
+  editingComboIdx=null;
+  _comboDraft=[];
+};
+
+window.openComboModal=function(){
+  editingComboIdx=null;
+  _comboDraft=[];
+  document.getElementById('modal-combo-title').textContent='Nouveau menu';
+  document.getElementById('c-nom').value='';
+  document.getElementById('c-cat').value='Combos';
+  document.getElementById('c-prix').value='';
+  document.getElementById('c-image').value='';
+  document.getElementById('c-slots-list').innerHTML='';
+  refreshComboCatSuggestions();
+  addSlotLine();addSlotLine();
+  document.getElementById('modal-combo').classList.add('open');
+};
+
+function renderCombosView(){
+  const c=document.getElementById('recettes-content');const isMaitre=userRole==='maitre';
+  const combos=(DB.combos||[]).map(_migrateCombo);
+  const viewToggle=`<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
+    <button onclick="setRecetteView('produits')" class="btn btn-secondary" style="flex:1;font-size:12px;min-width:70px;">🧁 Produits</button>
+    <button onclick="setRecetteView('toppings')" class="btn btn-secondary" style="flex:1;font-size:12px;min-width:70px;">🧂 Toppings</button>
+    <button onclick="setRecetteView('combos')" class="btn btn-primary" style="flex:1;font-size:12px;min-width:70px;background:#E66B3D;border-color:#E66B3D;">🍱 Menus</button>
+    <button onclick="setRecetteView('ingredientsMaison')" class="btn btn-secondary" style="flex:1;font-size:12px;min-width:70px;">🏠 Ingr. Maison</button>
+  </div>`;
+  const detailsToggle=`<button class="btn btn-secondary" onclick="toggleRecettesDetails()" style="margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;width:100%;"><span>${recettesShowDetails?'👁️ Masquer les choix':'👁️‍🗨️ Afficher les choix'}</span><span style="font-size:11px;color:var(--text3);">${recettesShowDetails?'(détaillé)':'(compact)'}</span></button>`;
+  const cardsHtml=combos.length===0
+    ?`<div class="empty-state"><div class="empty-icon">🍱</div>Aucun menu<br><span style="font-size:12px;">Cliquez sur "+ Nouveau menu" pour en créer un</span></div>`
+    :combos.map((cb,i)=>{
+      const slots=cb.slots||[];
+      const minSum=slots.reduce((s,sl)=>{
+        const prices=(sl.options||[]).map(id=>{const r=DB.recettes.find(x=>x.id===id);return r?r.prix:0;});
+        return prices.length?s+Math.min(...prices):s;
+      },0);
+      const maxSum=slots.reduce((s,sl)=>{
+        const prices=(sl.options||[]).map(id=>{const r=DB.recettes.find(x=>x.id===id);return r?r.prix:0;});
+        return prices.length?s+Math.max(...prices):s;
+      },0);
+      const baseLabel=minSum===maxSum?fmtDH(minSum):fmtDH(minSum)+' à '+fmtDH(maxSum);
+      const ecoMin=minSum-cb.prix,ecoMax=maxSum-cb.prix;
+      const ecoBadge=ecoMax>0?`<span class="badge" style="background:var(--accent-light);color:var(--accent);font-size:10px;">−${fmtDH(Math.max(0,ecoMin))} à ${fmtDH(Math.max(0,ecoMax))}</span>`:'';
+      const totalOpts=slots.reduce((s,sl)=>s+(sl.options||[]).length,0);
+      return `<div class="card">
+        <div class="card-header">
+          <div>
+            <div style="font-size:10px;color:#E66B3D;font-weight:600;margin-bottom:2px;">🍱 MENU · ${cb.cat||'Combos'}</div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              ${cb.image?`<img src="${cb.image}" style="width:36px;height:36px;object-fit:cover;border-radius:8px;flex-shrink:0;">`:`<div style="width:36px;height:36px;border-radius:8px;background:var(--surface2);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px;">🍱</div>`}
+              <div class="card-title">${cb.nom}</div>
+            </div>
+            <div style="font-size:11px;color:var(--text3);margin-top:4px;">${slots.length} choix · ${totalOpts} option(s) · base ${baseLabel}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;flex-direction:column;align-items:flex-end;">
+            <div style="display:flex;gap:4px;align-items:center;">
+              <span class="badge badge-green">${fmtDH(cb.prix)}</span>
+              ${ecoBadge}
+            </div>
+            ${isMaitre?`<div style="display:flex;gap:4px;">
+              <button onclick="duplicateCombo(${i})" title="Dupliquer" style="background:var(--accent-light);border:none;color:var(--accent);font-size:12px;padding:4px 8px;border-radius:6px;cursor:pointer;">📋</button>
+              <button onclick="editCombo(${i})" style="background:var(--blue-light);border:none;color:var(--blue);font-size:12px;padding:4px 8px;border-radius:6px;cursor:pointer;">✏️</button>
+              <button onclick="deleteCombo(${i})" style="background:none;border:none;font-size:16px;cursor:pointer;color:var(--text3);">×</button>
+            </div>`:''}
+          </div>
+        </div>
+        ${recettesShowDetails?`<div class="card-body" style="padding:8px 14px;">
+          ${slots.map(sl=>`<div style="padding:6px 0;border-bottom:0.5px solid var(--border);">
+            <div style="font-size:11px;font-weight:700;color:#E66B3D;margin-bottom:2px;">📍 ${sl.label||'(sans nom)'}</div>
+            <div style="font-size:11px;color:var(--text2);">${(sl.options||[]).map(id=>{const r=DB.recettes.find(x=>x.id===id);return r?`${r.nom} <span style="color:var(--text3);">(${fmtDH(r.prix)})</span>`:'<i>?</i>';}).join(' · ')||'<i>Aucune option</i>'}</div>
+          </div>`).join('')}
+        </div>`:''}
+      </div>`;
+    }).join('');
+  c.innerHTML=viewToggle+detailsToggle+cardsHtml;
+}
+window.renderCombosView=renderCombosView;
 
 // ==================== TAUX DE PERTE ACTIF ====================
 // Méthode A : pondération par valeur monétaire (CMP)
@@ -1915,13 +2235,19 @@ function buildVenteForm(){
 
 function posRenderCategories(){
   const produitsReg=DB.recettes.filter(r=>!isRecetteAddon(r)&&!isIngredientMaison(r));
+  const combosReg=DB.combos||[];
   document.getElementById('pos-breadcrumb').innerHTML='<span class="pos-step-label">Choisir une catégorie</span>';
-  if(produitsReg.length===0){
+  if(produitsReg.length===0&&combosReg.length===0){
     document.getElementById('pos-content').innerHTML='<div style="color:var(--text3);text-align:center;padding:30px 0;">Aucun produit disponible</div>';
     return;
   }
   const cats=[...new Set(produitsReg.map(r=>r.cat||'Sans catégorie'))].sort();
-  document.getElementById('pos-content').innerHTML=`<div class="pos-cat-grid">${
+  // Carte virtuelle "Combos" affichée en premier si au moins un combo
+  const comboCard=combosReg.length>0?`<div class="pos-cat-card" style="background:#FCE5D6;border-color:#E66B3D;" onclick="posSelectCombosView()">
+    <div class="pos-cat-name" style="color:#E66B3D;">🍱 Combos</div>
+    <div class="pos-cat-count" style="color:#E66B3D;">${combosReg.length} combo${combosReg.length>1?'s':''}</div>
+  </div>`:'';
+  document.getElementById('pos-content').innerHTML=`<div class="pos-cat-grid">${comboCard}${
     cats.map((cat,i)=>{
       const c=POS_COLORS[i%POS_COLORS.length];
       const count=produitsReg.filter(r=>(r.cat||'Sans catégorie')===cat).length;
@@ -1932,6 +2258,243 @@ function posRenderCategories(){
       </div>`;
     }).join('')
   }</div>`;
+}
+
+window.posSelectCombosView=function(){
+  posCurrentCat='__combos__';
+  const combos=(DB.combos||[]).map(_migrateCombo);
+  document.getElementById('pos-breadcrumb').innerHTML=`<button class="pos-back-btn" onclick="posRenderCategories()">← Catégories</button><span class="pos-step-label">🍱 Menus</span>`;
+  if(combos.length===0){
+    document.getElementById('pos-content').innerHTML='<div style="color:var(--text3);text-align:center;padding:30px 0;">Aucun menu disponible</div>';
+    return;
+  }
+  document.getElementById('pos-content').innerHTML=`<div class="produit-grid">${
+    combos.map(cb=>{
+      const slots=cb.slots||[];
+      const cartQty=posCart.filter(i=>i.isComboWrapper&&i.comboId===cb.id).reduce((acc,i)=>acc+i.qty,0);
+      const badge=cartQty>0?`<div style="position:absolute;top:6px;right:6px;background:#E66B3D;color:#fff;border-radius:50%;width:22px;height:22px;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;z-index:1;">${cartQty}</div>`:'';
+      const slotsLabel=slots.map(s=>s.label).filter(Boolean).join(' + ');
+      return `<div class="produit-card" onclick="posSelectCombo(${cb.id})" style="position:relative;border-color:#E66B3D;">
+        ${badge}
+        ${cb.image?`<img src="${cb.image}" class="produit-img" alt="${cb.nom}">`:`<div style="font-size:32px;line-height:1;">🍱</div>`}
+        <div class="produit-nom">${cb.nom}</div>
+        <div class="produit-prix">${fmtDH(cb.prix)}</div>
+        ${slotsLabel?`<div style="font-size:10px;color:var(--text3);font-weight:500;line-height:1.2;">${slotsLabel}</div>`:''}
+      </div>`;
+    }).join('')
+  }</div>`;
+};
+
+// ── État machine pour la sélection d'un combo ─────────────────
+let comboSelectionState={combo:null,slotIndex:0,resolved:[],comboInstanceId:null,_currentResolvedIdx:null};
+
+window.posSelectCombo=function(comboId){
+  const raw=(DB.combos||[]).find(x=>x.id===comboId);
+  if(!raw)return;
+  const cb=_migrateCombo(raw);
+  if(!cb.slots||cb.slots.length===0){toast('⚠️ Ce menu n\'a aucun choix configuré');return;}
+  const brokenSlot=cb.slots.find(s=>!(s.options||[]).some(id=>DB.recettes.find(r=>r.id===id)));
+  if(brokenSlot){toast('⚠️ Toutes les options du choix « '+(brokenSlot.label||'?')+' » ont été supprimées');return;}
+  comboSelectionState={combo:cb,slotIndex:0,resolved:[],comboInstanceId:Date.now()+'-'+Math.random().toString(36).slice(2,7),_currentResolvedIdx:null};
+  posRenderComboSlotPicker();
+};
+
+function posRenderComboSlotPicker(){
+  const st=comboSelectionState;
+  if(!st.combo)return;
+  const slots=st.combo.slots||[];
+  if(st.slotIndex>=slots.length){
+    posAskComboNextSupplements();
+    return;
+  }
+  const slot=slots[st.slotIndex];
+  const options=(slot.options||[]).map(id=>DB.recettes.find(r=>r.id===id)).filter(Boolean);
+  document.getElementById('pos-breadcrumb').innerHTML=`<button class="pos-back-btn" onclick="posCancelCombo()">← Annuler menu</button><span class="pos-step-label">🍱 ${st.combo.nom} · Choix ${st.slotIndex+1}/${slots.length} · ${slot.label||'?'}</span>`;
+  if(options.length===1){
+    posPickSlotOption(options[0].id);
+    return;
+  }
+  document.getElementById('pos-content').innerHTML=`
+    <div style="font-size:13px;color:var(--text3);margin-bottom:12px;text-align:center;">Choisis une option pour <strong>${slot.label||'ce choix'}</strong></div>
+    <div class="produit-grid">${
+      options.map(r=>{
+        const addons=(()=>{const b=[];if(r.supplementEligible)b.push('<span style="color:var(--amber);">+Suppl.</span>');if(r.toppingEligible)b.push('<span style="color:var(--blue);">+Topping</span>');return b.length?`<div style="font-size:10px;font-weight:600;margin-top:-4px;">${b.join(' ')}</div>`:'';})();
+        return `<div class="produit-card" onclick="posPickSlotOption(${r.id})" style="position:relative;">
+          ${r.image?`<img src="${r.image}" class="produit-img" alt="${r.nom}">`:`<div style="font-size:32px;line-height:1;">🍽</div>`}
+          <div class="produit-nom">${r.nom}</div>
+          <div class="produit-prix" style="color:var(--text3);text-decoration:line-through;font-size:11px;">${fmtDH(r.prix)}</div>
+          ${addons}
+        </div>`;
+      }).join('')
+    }</div>`;
+}
+
+window.posPickSlotOption=function(recetteId){
+  const st=comboSelectionState;
+  if(!st.combo)return;
+  st.resolved.push({slotIndex:st.slotIndex,recetteId,supplements:[],toppings:[],_processed:false});
+  st.slotIndex++;
+  posRenderComboSlotPicker();
+};
+
+function posAskComboNextSupplements(){
+  const st=comboSelectionState;
+  if(!st.combo)return;
+  for(let i=0;i<st.resolved.length;i++){
+    const c=st.resolved[i];
+    if(c._processed)continue;
+    const r=DB.recettes.find(x=>x.id===c.recetteId);
+    if(!r){c._processed=true;continue;}
+    if(r.supplementEligible){
+      st._currentResolvedIdx=i;
+      multiSelectState={product:r,selectedSupplementIds:[],selectedToppingIds:[],step:'supplements',_inCombo:true};
+      posRenderComboSupplements(r);
+      return;
+    }
+    if(r.toppingEligible){
+      st._currentResolvedIdx=i;
+      multiSelectState={product:r,selectedSupplementIds:[],selectedToppingIds:[],step:'toppings',_inCombo:true};
+      posRenderComboToppings(r);
+      return;
+    }
+    c._processed=true;
+  }
+  posFinalizeCombo();
+}
+
+function posRenderComboSupplements(product){
+  multiSelectState.step='supplements';
+  multiSelectState.selectedSupplementIds=[];
+  const supplements=DB.recettes.filter(r=>isRecetteSupplément(r));
+  document.getElementById('pos-breadcrumb').innerHTML=`<button class="pos-back-btn" onclick="posCancelCombo()">← Annuler menu</button><span class="pos-step-label">🍱 ${comboSelectionState.combo.nom} · ${product.nom} — Suppléments</span>`;
+  const suppHtml=supplements.length===0
+    ?'<div style="color:var(--text3);text-align:center;padding:20px 0;">Aucun supplément disponible</div>'
+    :supplements.map(s=>`<div class="supp-item" id="supp-item-${s.id}" onclick="toggleMultiSelect('supplements',${s.id})">
+      <div style="display:flex;align-items:center;gap:10px;flex:1;">
+        ${s.image?`<img src="${s.image}" style="width:44px;height:44px;border-radius:8px;object-fit:cover;">`:'<div style="font-size:28px;line-height:1;">➕</div>'}
+        <div>
+          <div style="font-size:14px;font-weight:600;">${s.nom}</div>
+          <div style="font-size:12px;color:var(--amber);font-weight:600;">+ ${fmtDH(s.prix)}</div>
+        </div>
+      </div>
+      <div class="supp-check" id="supp-check-${s.id}">✓</div>
+    </div>`).join('');
+  document.getElementById('pos-content').innerHTML=`
+    <div style="font-size:13px;color:var(--text3);margin-bottom:12px;text-align:center;">Suppléments pour <strong>${product.nom}</strong> — cochez ce que le client veut</div>
+    ${suppHtml}
+    <div style="padding-top:12px;border-top:0.5px solid var(--border);display:flex;gap:8px;margin-top:4px;">
+      <button class="btn btn-secondary" style="flex:1;" onclick="confirmComboStep('supplements',false)">Sans supplément</button>
+      <button class="btn btn-primary" style="flex:1;" id="btn-confirm-suppl" onclick="confirmComboStep('supplements',true)">Suivant →</button>
+    </div>`;
+}
+
+function posRenderComboToppings(product){
+  multiSelectState.step='toppings';
+  multiSelectState.selectedToppingIds=[];
+  const toppings=DB.recettes.filter(r=>isRecetteTopping(r));
+  document.getElementById('pos-breadcrumb').innerHTML=`<button class="pos-back-btn" onclick="posCancelCombo()">← Annuler menu</button><span class="pos-step-label">🍱 ${comboSelectionState.combo.nom} · ${product.nom} — Toppings</span>`;
+  const topHtml=toppings.length===0
+    ?'<div style="color:var(--text3);text-align:center;padding:20px 0;">Aucun topping disponible</div>'
+    :toppings.map(t=>`<div class="supp-item" id="supp-item-${t.id}" onclick="toggleMultiSelect('toppings',${t.id})">
+      <div style="display:flex;align-items:center;gap:10px;flex:1;">
+        ${t.image?`<img src="${t.image}" style="width:44px;height:44px;border-radius:8px;object-fit:cover;">`:'<div style="font-size:28px;line-height:1;">🧂</div>'}
+        <div>
+          <div style="font-size:14px;font-weight:600;">${t.nom}</div>
+          <div style="font-size:12px;color:var(--blue);font-weight:600;">+ ${fmtDH(t.prix)}</div>
+        </div>
+      </div>
+      <div class="supp-check" id="supp-check-${t.id}">✓</div>
+    </div>`).join('');
+  document.getElementById('pos-content').innerHTML=`
+    <div style="font-size:13px;color:var(--text3);margin-bottom:12px;text-align:center;">Toppings pour <strong>${product.nom}</strong></div>
+    ${topHtml}
+    <div style="padding-top:12px;border-top:0.5px solid var(--border);display:flex;gap:8px;margin-top:4px;">
+      <button class="btn btn-secondary" style="flex:1;" onclick="confirmComboStep('toppings',false)">Sans topping</button>
+      <button class="btn btn-primary" style="flex:1;" id="btn-confirm-topping" onclick="confirmComboStep('toppings',true)">Suivant →</button>
+    </div>`;
+}
+
+window.confirmComboStep=function(type,withSelection){
+  const st=comboSelectionState;
+  const idx=st._currentResolvedIdx;
+  if(idx===null||!st.resolved[idx])return;
+  const c=st.resolved[idx];
+  const product=multiSelectState.product;
+  if(!withSelection){
+    if(type==='supplements')multiSelectState.selectedSupplementIds=[];
+    else multiSelectState.selectedToppingIds=[];
+  }
+  if(type==='supplements'){
+    c.supplements=multiSelectState.selectedSupplementIds.map(id=>DB.recettes.find(x=>x.id===id)).filter(Boolean).map(s=>({id:s.id,nom:s.nom,prix:s.prix}));
+    if(product&&product.toppingEligible){
+      multiSelectState.selectedToppingIds=[];
+      posRenderComboToppings(product);
+      return;
+    }
+  } else {
+    c.toppings=multiSelectState.selectedToppingIds.map(id=>DB.recettes.find(x=>x.id===id)).filter(Boolean).map(t=>({id:t.id,nom:t.nom,prix:t.prix}));
+  }
+  c._processed=true;
+  posAskComboNextSupplements();
+};
+
+window.posCancelCombo=function(){
+  comboSelectionState={combo:null,slotIndex:0,resolved:[],comboInstanceId:null,_currentResolvedIdx:null};
+  multiSelectState={product:null,selectedSupplementIds:[],selectedToppingIds:[],step:null};
+  posSelectCombosView();
+};
+
+function posFinalizeCombo(){
+  const st=comboSelectionState;
+  if(!st.combo||st.resolved.length===0)return;
+  const cb=st.combo;
+  const resolvedDetails=st.resolved.map(c=>{
+    const r=DB.recettes.find(x=>x.id===c.recetteId);
+    return {
+      recetteId:c.recetteId,
+      recetteNom:r?r.nom:'?',
+      slotLabel:cb.slots[c.slotIndex]?.label||'',
+      supplements:c.supplements||[],
+      toppings:c.toppings||[]
+    };
+  });
+  posCart.push({
+    isComboWrapper:true,
+    recetteId:-1,recetteNom:cb.nom,
+    prixBase:cb.prix,prixUnit:cb.prix,
+    image:cb.image||'',
+    supplements:[],toppings:[],
+    qty:1,
+    cartKey:`combo_${st.comboInstanceId}_wrap`,
+    comboId:cb.id,comboNom:cb.nom,comboInstanceId:st.comboInstanceId,
+    comboComposants:resolvedDetails
+  });
+  st.resolved.forEach((c,idx)=>{
+    const r=DB.recettes.find(x=>x.id===c.recetteId);
+    if(!r)return;
+    const supps=c.supplements||[];
+    const tops=c.toppings||[];
+    const prixSupp=supps.reduce((s,x)=>s+x.prix,0);
+    const prixTop=tops.reduce((s,x)=>s+x.prix,0);
+    const componentExtra=prixSupp+prixTop;
+    posCart.push({
+      isComboComponent:true,
+      recetteId:r.id,recetteNom:r.nom,
+      prixBase:0,prixUnit:componentExtra,
+      image:r.image||'',
+      supplements:supps,toppings:tops,
+      qty:1,
+      cartKey:`combo_${st.comboInstanceId}_c${idx}`,
+      comboId:cb.id,comboNom:cb.nom,comboInstanceId:st.comboInstanceId,
+      comboPartIndex:idx,comboPartCount:st.resolved.length,
+      slotLabel:cb.slots[c.slotIndex]?.label||''
+    });
+  });
+  toast(`✅ ${cb.nom} ajouté`);
+  comboSelectionState={combo:null,slotIndex:0,resolved:[],comboInstanceId:null,_currentResolvedIdx:null};
+  multiSelectState={product:null,selectedSupplementIds:[],selectedToppingIds:[],step:null};
+  posSelectCombosView();
+  posUpdateCartBar();
 }
 
 window.posSelectCategory=function(cat){
@@ -2127,12 +2690,46 @@ function posUpdateCartBar(){
 }
 
 window.posShowCart=function(){
-  const backFn=posCurrentCat?`posRenderProducts('${posCurrentCat.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')` :'posRenderCategories()';
+  const backFn=posCurrentCat==='__combos__'?'posSelectCombosView()':posCurrentCat?`posRenderProducts('${posCurrentCat.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')` :'posRenderCategories()';
   document.getElementById('pos-breadcrumb').innerHTML=`<button class="pos-back-btn" onclick="${backFn}">← Continuer mes achats</button><span class="pos-step-label">Mon panier</span>`;
   if(posCart.length===0){document.getElementById('pos-content').innerHTML='<div style="text-align:center;color:var(--text3);padding:30px 0;">Panier vide</div>';return;}
   const total=posCart.reduce((s,i)=>s+i.qty*i.prixUnit,0);
-  document.getElementById('pos-content').innerHTML=`
-    ${posCart.map((item,idx)=>`<div class="pos-cart-item">
+  // Grouper les items par comboInstanceId pour affichage visuel
+  const rendered=new Set();
+  const itemsHtml=posCart.map((item,idx)=>{
+    if(rendered.has(idx))return '';
+    if(item.comboInstanceId){
+      const idxs=posCart.map((it,j)=>it.comboInstanceId===item.comboInstanceId?j:-1).filter(j=>j>=0);
+      idxs.forEach(j=>rendered.add(j));
+      const comboItems=idxs.map(j=>posCart[j]);
+      const wrapper=comboItems.find(x=>x.isComboWrapper)||comboItems[0];
+      const components=comboItems.filter(x=>x.isComboComponent);
+      const totalCombo=comboItems.reduce((s,x)=>s+x.qty*x.prixUnit,0);
+      const sumExtra=components.reduce((s,x)=>s+x.qty*x.prixUnit,0);
+      return `<div style="border:1.5px solid #E66B3D;border-radius:var(--radius);padding:8px 10px;margin:8px 0;background:#FCE5D6;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <div style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#E66B3D;">🍱 ${wrapper.comboNom}</div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <button class="qty-btn qty-btn-minus" onclick="posComboQty('${wrapper.comboInstanceId}',-1)">−</button>
+            <span style="font-size:14px;font-weight:700;min-width:22px;text-align:center;">${wrapper.qty}</span>
+            <button class="qty-btn qty-btn-plus" onclick="posComboQty('${wrapper.comboInstanceId}',1)">+</button>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">Prix menu : <strong>${fmtDH(wrapper.prixUnit)}</strong>${sumExtra>0?` + suppléments <strong style="color:var(--amber);">${fmtDH(sumExtra)}</strong>`:''}</div>
+        ${components.map(ci=>`<div style="display:flex;gap:8px;padding:5px 0;border-top:0.5px dashed rgba(230,107,61,0.3);">
+          ${ci.image?`<img src="${ci.image}" style="width:32px;height:32px;object-fit:cover;border-radius:6px;flex-shrink:0;">`:`<div style="width:32px;height:32px;background:rgba(255,255,255,0.5);border-radius:6px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px;">🍽</div>`}
+          <div style="flex:1;min-width:0;">
+            ${ci.slotLabel?`<div style="font-size:9px;font-weight:700;color:#E66B3D;text-transform:uppercase;">${ci.slotLabel}</div>`:''}
+            <div style="font-size:12px;font-weight:600;">${ci.recetteNom}</div>
+            ${(ci.supplements||[]).map(s=>`<div style="font-size:10px;color:var(--amber);">➕ ${s.nom} (+${fmtDH(s.prix)})</div>`).join('')}
+            ${(ci.toppings||[]).map(t=>`<div style="font-size:10px;color:var(--blue);">🧂 ${t.nom} (+${fmtDH(t.prix)})</div>`).join('')}
+          </div>
+        </div>`).join('')}
+        <div style="text-align:right;font-size:13px;font-weight:700;color:#E66B3D;margin-top:4px;border-top:0.5px solid rgba(230,107,61,0.3);padding-top:4px;">Total : ${fmtDH(totalCombo)}</div>
+      </div>`;
+    }
+    rendered.add(idx);
+    return `<div class="pos-cart-item">
       ${item.image?`<img src="${item.image}" class="pos-cart-thumb">`:`<div class="pos-cart-thumb-placeholder">🍽</div>`}
       <div style="flex:1;min-width:0;">
         <div style="font-size:13px;font-weight:600;">${item.recetteNom}</div>
@@ -2145,7 +2742,10 @@ window.posShowCart=function(){
         <span style="font-size:14px;font-weight:700;min-width:22px;text-align:center;">${item.qty}</span>
         <button class="qty-btn qty-btn-plus" onclick="posCartQty(${idx},1)">+</button>
       </div>
-    </div>`).join('')}
+    </div>`;
+  }).join('');
+  document.getElementById('pos-content').innerHTML=`
+    ${itemsHtml}
     <div style="padding-top:12px;display:flex;justify-content:space-between;font-size:15px;font-weight:700;border-top:1px solid var(--border);">
       <span>Total</span><span style="color:var(--accent);">${fmtDH(total)}</span>
     </div>
@@ -2180,6 +2780,19 @@ window.posCartQty=function(idx,delta){
   if(!posCart[idx])return;
   posCart[idx].qty=Math.max(0,posCart[idx].qty+delta);
   if(posCart[idx].qty===0)posCart.splice(idx,1);
+  posUpdateCartBar();
+  window.posShowCart();
+};
+
+window.posComboQty=function(comboInstanceId,delta){
+  const idxs=[];
+  posCart.forEach((it,i)=>{if(it.comboInstanceId===comboInstanceId)idxs.push(i);});
+  if(idxs.length===0)return;
+  idxs.forEach(i=>{posCart[i].qty=Math.max(0,posCart[i].qty+delta);});
+  // Si qty tombe à 0, retirer tous les composants du combo
+  if(posCart[idxs[0]].qty===0){
+    [...idxs].reverse().forEach(i=>posCart.splice(i,1));
+  }
   posUpdateCartBar();
   window.posShowCart();
 };
@@ -2232,6 +2845,21 @@ window.saveVente=async function(){
       supplements:item.supplements||[],
       toppings:item.toppings||[]
     };
+    if(item.comboId){
+      entry.comboId=item.comboId;
+      entry.comboNom=item.comboNom;
+      entry.comboInstanceId=item.comboInstanceId;
+      if(item.isComboWrapper){
+        entry.isComboWrapper=true;
+        entry.comboComposants=item.comboComposants||[];
+      }
+      if(item.isComboComponent){
+        entry.isComboComponent=true;
+        entry.comboPartIndex=item.comboPartIndex;
+        entry.comboPartCount=item.comboPartCount;
+        entry.slotLabel=item.slotLabel||'';
+      }
+    }
     entries.push(entry);
     total+=item.qty*item.prixUnit;
     await pushToFirebase('ventes',{...entry,date:now.toISOString()});
@@ -2239,7 +2867,12 @@ window.saveVente=async function(){
   await pushToFirebase('historique',{type:'vente',date:now.toISOString(),entries,total});
   posCart=[];
   closeModal('modal-vente');
-  toast(`✅ ${entries.length} produit${entries.length>1?'s':''} — ${fmtDH(total)}`);
+  const nbCombos=entries.filter(e=>e.isComboWrapper).length;
+  const nbProds=entries.filter(e=>!e.comboId).length;
+  const parts=[];
+  if(nbCombos>0)parts.push(`${nbCombos} menu${nbCombos>1?'s':''}`);
+  if(nbProds>0)parts.push(`${nbProds} produit${nbProds>1?'s':''}`);
+  toast(`✅ ${parts.join(' + ')||entries.length+' éléments'} — ${fmtDH(total)}`);
 };
 
 // Correction des ventes du jour
@@ -2248,14 +2881,45 @@ function buildCorrectionList(){
   const ventesAujourd=DB.ventes.filter(v=>fmtDate(new Date(v.date))===todayStr);
   const list=document.getElementById('correction-list');
   if(ventesAujourd.length===0){list.innerHTML='<div style="color:var(--text3);text-align:center;padding:20px;">Aucune vente aujourd\'hui</div>';return;}
-  // Agréger par produit
+
+  // 1) Lister les menus vendus aujourd'hui (par instance)
+  const comboInstances={};
+  ventesAujourd.forEach(v=>{
+    if(!v.comboInstanceId)return;
+    if(!comboInstances[v.comboInstanceId])comboInstances[v.comboInstanceId]={comboNom:v.comboNom||'?',wrapperPrice:0,extraPrice:0,components:[],time:v.date};
+    const inst=comboInstances[v.comboInstanceId];
+    if(v.isComboWrapper){
+      inst.wrapperPrice=(v.qty||1)*(v.prixUnit||0);
+      if(Array.isArray(v.comboComposants)&&inst.components.length===0){
+        inst.components=v.comboComposants.map(c=>({recetteNom:c.recetteNom,slotLabel:c.slotLabel||''}));
+      }
+    } else if(v.isComboComponent){
+      inst.extraPrice+=(v.qty||1)*(v.prixUnit||0);
+    }
+  });
+  const comboHtml=Object.entries(comboInstances).sort((a,b)=>b[1].time.localeCompare(a[1].time)).map(([instId,inst])=>{
+    const total=inst.wrapperPrice+inst.extraPrice;
+    const time=new Date(inst.time).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+    const compsList=inst.components.map(c=>`<span style="background:var(--surface);border-radius:8px;padding:1px 6px;margin-right:3px;display:inline-block;font-size:10px;">${c.slotLabel?`<span style="font-size:8px;font-weight:700;color:#E66B3D;text-transform:uppercase;">${c.slotLabel}: </span>`:''}${c.recetteNom}</span>`).join('');
+    return `<div class="card" style="margin-bottom:8px;border:1px solid #E66B3D;background:#FCE5D6;">
+      <div class="card-body">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <div><div class="list-name" style="color:#E66B3D;">🍱 ${inst.comboNom}</div><div class="list-sub">${time} · ${fmtDH(total)}</div></div>
+          <button class="btn btn-sm btn-danger" onclick="deleteComboInstance('${instId}')">Supprimer</button>
+        </div>
+        <div>${compsList||'<span style="font-size:11px;color:var(--text3);">Aucun composant détaillé</span>'}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // 2) Lister les produits hors menu
   const byProd={};
-  DB.ventes.forEach((v,idx)=>{
-    if(fmtDate(new Date(v.date))!==todayStr)return;
+  ventesAujourd.forEach(v=>{
+    if(v.isComboWrapper||v.isComboComponent||v.comboId)return;
     if(!byProd[v.recetteNom])byProd[v.recetteNom]={nom:v.recetteNom,prix:v.prixUnit,qty:0};
     byProd[v.recetteNom].qty+=v.qty;
   });
-  list.innerHTML=Object.entries(byProd).sort((a,b)=>a[0]>b[0]?1:-1).map(([nom,data])=>`
+  const prodHtml=Object.entries(byProd).sort((a,b)=>a[0]>b[0]?1:-1).map(([nom,data])=>`
     <div class="card" style="margin-bottom:8px;"><div class="card-body">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
         <div><div class="list-name">${nom}</div><div class="list-sub">${fmtDH(data.prix)} / unité</div></div>
@@ -2269,20 +2933,35 @@ function buildCorrectionList(){
         <button class="btn btn-sm btn-danger" onclick="deleteVenteProd('${nom}')">Supprimer</button>
       </div>
     </div></div>`).join('');
+
+  let html='';
+  if(comboHtml){
+    html+=`<div style="font-size:11px;font-weight:700;color:#E66B3D;text-transform:uppercase;margin-bottom:6px;">Menus vendus</div>${comboHtml}`;
+  }
+  if(prodHtml){
+    html+=`<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;margin:${comboHtml?'12px 0 6px':'0 0 6px'};">Produits hors menu</div>${prodHtml}`;
+  }
+  if(!comboHtml&&!prodHtml){
+    html='<div style="color:var(--text3);text-align:center;padding:20px;">Aucune vente à corriger</div>';
+  }
+  list.innerHTML=html;
 }
 
 window.correctQty=async function(nom,delta){
   const todayStr=fmtDate(new Date());
-  // Trouver toutes les ventes du jour pour ce produit dans Firebase
   const snapshot=await get(ref(db,'stockapp/ventes'));
   if(!snapshot.exists())return;
   const all=snapshot.val();
   let totalQty=0;
-  const keys=Object.keys(all).filter(k=>all[k].recetteNom===nom&&fmtDate(new Date(all[k].date))===todayStr);
+  // Filtrer : ne modifier QUE les ventes hors combo (ni wrapper ni composant)
+  const keys=Object.keys(all).filter(k=>{
+    const v=all[k];
+    if(v.isComboWrapper||v.isComboComponent||v.comboId)return false;
+    return v.recetteNom===nom&&fmtDate(new Date(v.date))===todayStr;
+  });
   keys.forEach(k=>{totalQty+=all[k].qty;});
   const newQty=Math.max(0,totalQty+delta);
   if(newQty===totalQty)return;
-  // Supprimer toutes les entrées du jour pour ce produit, puis recréer avec newQty
   for(const k of keys){await remove(ref(db,'stockapp/ventes/'+k));}
   if(newQty>0){
     const r=DB.recettes.find(x=>x.nom===nom);
@@ -2299,9 +2978,24 @@ window.deleteVenteProd=async function(nom){
   const snapshot=await get(ref(db,'stockapp/ventes'));
   if(!snapshot.exists())return;
   const all=snapshot.val();
-  const keys=Object.keys(all).filter(k=>all[k].recetteNom===nom&&fmtDate(new Date(all[k].date))===todayStr);
+  const keys=Object.keys(all).filter(k=>{
+    const v=all[k];
+    if(v.isComboWrapper||v.isComboComponent||v.comboId)return false;
+    return v.recetteNom===nom&&fmtDate(new Date(v.date))===todayStr;
+  });
   for(const k of keys){await remove(ref(db,'stockapp/ventes/'+k));}
   toast(`🗑️ ${nom} supprimé`);buildCorrectionList();
+};
+
+// Supprimer une instance complète de menu (wrapper + composants) du jour
+window.deleteComboInstance=async function(comboInstanceId){
+  if(!confirm('Supprimer ce menu de la caisse ?'))return;
+  const snapshot=await get(ref(db,'stockapp/ventes'));
+  if(!snapshot.exists())return;
+  const all=snapshot.val();
+  const keys=Object.keys(all).filter(k=>all[k].comboInstanceId===comboInstanceId);
+  for(const k of keys){await remove(ref(db,'stockapp/ventes/'+k));}
+  toast('🗑️ Menu retiré');buildCorrectionList();
 };
 
 function getVentesForDate(ds){return DB.ventes.filter(v=>fmtDate(new Date(v.date))===ds);}
@@ -2313,6 +3007,8 @@ let caisseHistOpen = false;
 let caisseHistView = 'global'; // 'global' | 'mois'
 let caisseHistMoisKey = null;  // 'YYYY-MM'
 let caisseFermOpen = false;
+// Suivi des saisies dépliées (par date ISO)
+let caisseHistEntryOpen = new Set();
 
 // Décale un mois clé 'YYYY-MM' de +/- delta mois
 function _shiftMois(mk, delta) {
@@ -2339,6 +3035,88 @@ function _buildTopProduitsSection(totalVentes) {
   return `${btnHtml}<div class="card" style="margin-bottom:4px;"><div class="card-body">${content}</div></div>`;
 }
 
+function _summarizeEntries(entries){
+  const arr=entries||[];
+  const nbCombos=arr.filter(e=>e.isComboWrapper).length;
+  const nbProds=arr.filter(e=>!e.comboId).reduce((s,e)=>s+(e.qty||1),0);
+  const parts=[];
+  if(nbCombos>0)parts.push(`${nbCombos} menu${nbCombos>1?'s':''}`);
+  if(nbProds>0)parts.push(`${nbProds} produit${nbProds>1?'s':''}`);
+  return parts.length>0?parts.join(' + '):arr.length+' éléments';
+}
+
+function _renderEntryDetails(entries){
+  const arr=entries||[];
+  if(arr.length===0)return '<div style="font-size:11px;color:var(--text3);">Aucun détail</div>';
+  const groupedById={};
+  const standalone=[];
+  arr.forEach(e=>{
+    if(e.comboInstanceId){
+      if(!groupedById[e.comboInstanceId])groupedById[e.comboInstanceId]={wrapper:null,components:[]};
+      if(e.isComboWrapper)groupedById[e.comboInstanceId].wrapper=e;
+      else groupedById[e.comboInstanceId].components.push(e);
+    } else {
+      standalone.push(e);
+    }
+  });
+  let html='';
+  Object.values(groupedById).forEach(g=>{
+    const w=g.wrapper;
+    if(!w)return;
+    const sumExtra=g.components.reduce((s,c)=>s+(c.qty||1)*(c.prixUnit||0),0);
+    const totalCombo=(w.qty||1)*w.prixUnit+sumExtra;
+    const composants=w.comboComposants&&w.comboComposants.length>0?w.comboComposants:g.components.map(c=>({recetteNom:c.recetteNom,slotLabel:c.slotLabel||'',supplements:c.supplements||[],toppings:c.toppings||[]}));
+    html+=`<div style="border:1px solid #E66B3D;border-radius:6px;background:#FCE5D6;padding:6px 8px;margin-bottom:6px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+        <div style="font-size:12px;font-weight:700;color:#E66B3D;">🍱 ${w.comboNom}${w.qty>1?` × ${w.qty}`:''}</div>
+        <div style="font-size:12px;font-weight:700;color:#E66B3D;">${fmtDH(totalCombo)}</div>
+      </div>
+      <div style="font-size:10px;color:var(--text2);">Prix menu : ${fmtDH(w.prixUnit)}${sumExtra>0?` + suppléments ${fmtDH(sumExtra)}`:''}</div>
+      ${composants.map(c=>`<div style="font-size:11px;padding:3px 0;border-top:0.5px dashed rgba(230,107,61,0.3);margin-top:3px;">
+        ${c.slotLabel?`<span style="font-size:9px;font-weight:700;color:#E66B3D;text-transform:uppercase;">${c.slotLabel} : </span>`:''}
+        <span>${c.recetteNom}</span>
+        ${(c.supplements||[]).map(s=>` <span style="color:var(--amber);font-size:10px;">+${s.nom}</span>`).join('')}
+        ${(c.toppings||[]).map(t=>` <span style="color:var(--blue);font-size:10px;">+${t.nom}</span>`).join('')}
+      </div>`).join('')}
+    </div>`;
+  });
+  if(standalone.length>0){
+    html+=standalone.map(e=>`<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:0.5px solid var(--border);font-size:12px;">
+      <div>
+        <span>${e.recetteNom}${e.qty>1?` × ${e.qty}`:''}</span>
+        ${(e.supplements||[]).map(s=>` <span style="color:var(--amber);font-size:10px;">+${s.nom}</span>`).join('')}
+        ${(e.toppings||[]).map(t=>` <span style="color:var(--blue);font-size:10px;">+${t.nom}</span>`).join('')}
+      </div>
+      <span style="font-weight:600;">${fmtDH((e.qty||1)*e.prixUnit)}</span>
+    </div>`).join('');
+  }
+  return html;
+}
+
+function _renderHistEntryCard(h,opts){
+  const dateLabel=opts&&opts.timeOnly
+    ?new Date(h.date).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})
+    :new Date(h.date).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  const isOpen=caisseHistEntryOpen.has(h.date);
+  const summary=_summarizeEntries(h.entries||[]);
+  const details=isOpen?`<div style="padding:8px 4px;border-top:0.5px solid var(--border);margin-top:6px;">${_renderEntryDetails(h.entries||[])}</div>`:'';
+  return `<div class="card" style="margin-bottom:5px;cursor:pointer;" onclick="toggleHistEntry('${h.date}')">
+    <div class="card-body" style="padding:8px 12px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:12px;font-weight:500;">🧾 ${dateLabel}</div>
+          <div style="font-size:11px;color:var(--text3);">${summary}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+          <span class="badge badge-green">${fmtDH(h.total||0)}</span>
+          <span style="font-size:14px;color:var(--text3);">${isOpen?'⌄':'›'}</span>
+        </div>
+      </div>
+      ${details}
+    </div>
+  </div>`;
+}
+
 // Construit le HTML de la section Historique caisse (collapsible + 2 vues)
 function _buildHistoriqueSection(histAll) {
   const nb = histAll.length;
@@ -2355,7 +3133,7 @@ function _buildHistoriqueSection(histAll) {
     const slice = histAll.slice(0, 30);
     innerHtml = slice.length === 0
       ? '<div style="color:var(--text3);font-size:12px;text-align:center;padding:16px;">Aucune saisie</div>'
-      : slice.map(h => `<div class="card" style="margin-bottom:6px;"><div class="card-body" style="padding:10px 14px;"><div style="display:flex;align-items:center;justify-content:space-between;"><div><div class="list-name">🧾 Saisie caisse</div><div class="list-sub">${new Date(h.date).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})} · ${h.entries?h.entries.length:0} produit(s)</div></div><span class="badge badge-green">${fmtDH(h.total||0)}</span></div></div></div>`).join('');
+      : slice.map(h=>_renderHistEntryCard(h,{timeOnly:false})).join('');
   } else {
     const mk = caisseHistMoisKey;
     const [yr, mo] = mk.split('-').map(Number);
@@ -2372,13 +3150,18 @@ function _buildHistoriqueSection(histAll) {
         const ents = byDay[ds];
         const totalDay = ents.reduce((s,h)=>s+(h.total||0),0);
         const label = new Date(ds+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'long',day:'2-digit',month:'long'});
-        return `<div style="margin-bottom:12px;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;padding:0 2px;"><span style="font-size:11px;font-weight:600;color:var(--text3);text-transform:capitalize;">${label}</span><span style="font-size:11px;font-weight:600;color:var(--accent);">${fmtDH(totalDay)}</span></div>${ents.map(h=>`<div class="card" style="margin-bottom:5px;"><div class="card-body" style="padding:8px 12px;"><div style="display:flex;align-items:center;justify-content:space-between;"><div><div style="font-size:12px;font-weight:500;">🧾 ${new Date(h.date).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</div><div style="font-size:11px;color:var(--text3);">${h.entries?h.entries.length:0} produit(s)</div></div><span class="badge badge-green">${fmtDH(h.total||0)}</span></div></div></div>`).join('')}</div>`;
+        return `<div style="margin-bottom:12px;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;padding:0 2px;"><span style="font-size:11px;font-weight:600;color:var(--text3);text-transform:capitalize;">${label}</span><span style="font-size:11px;font-weight:600;color:var(--accent);">${fmtDH(totalDay)}</span></div>${ents.map(h=>_renderHistEntryCard(h,{timeOnly:true})).join('')}</div>`;
       }).join('');
     }
   }
 
   return `${btnHtml}<div style="margin-bottom:8px;"><div style="display:flex;gap:6px;margin-bottom:10px;"><button onclick="setCaisseHistView('global')" class="pill ${caisseHistView==='global'?'active':''}">Vue globale</button><button onclick="setCaisseHistView('mois')" class="pill ${caisseHistView==='mois'?'active':''}">Par mois</button></div>${innerHtml}</div>`;
 }
+window.toggleHistEntry=function(dateKey){
+  if(caisseHistEntryOpen.has(dateKey))caisseHistEntryOpen.delete(dateKey);
+  else caisseHistEntryOpen.add(dateKey);
+  renderCaisse();
+};
 
 // Helper : retourne HTML couleur+icône pour un écart
 function _ecartStyle(ecart) {
@@ -2465,10 +3248,11 @@ function renderCaisse(){
   const today=new Date();const todayStr=fmtDate(today);
   const ventesAujourd=getVentesForDate(todayStr);
   const totalJour=ventesAujourd.reduce((s,v)=>s+v.qty*v.prixUnit,0);
-  const totalUnitsJour=ventesAujourd.reduce((s,v)=>s+v.qty,0);
+  const totalUnitsJour=ventesAujourd.filter(v=>!v.isComboComponent).reduce((s,v)=>s+v.qty,0);
   const totalVentes=DB.ventes.reduce((acc,v)=>{acc[v.recetteId]=(acc[v.recetteId]||0)+v.qty;return acc;},{});
   const datesWithVentes=getDatesWithVentes();
-  const byProdToday={};ventesAujourd.forEach(v=>{byProdToday[v.recetteNom]=(byProdToday[v.recetteNom]||0)+v.qty;});
+  // Top produits du jour : exclure wrappers (montrés à part en combos) et composants (détails sous combos)
+  const byProdToday={};ventesAujourd.filter(v=>!v.isComboWrapper&&!v.isComboComponent).forEach(v=>{byProdToday[v.recetteNom]=(byProdToday[v.recetteNom]||0)+v.qty;});
   const firstDay=new Date(calYear,calMonth,1);const lastDay=new Date(calYear,calMonth+1,0);
   const startWDay=(firstDay.getDay()+6)%7;const days=[];
   for(let i=0;i<startWDay;i++){const d=new Date(calYear,calMonth,-(startWDay-1-i));days.push({d,other:true});}
@@ -2476,7 +3260,7 @@ function renderCaisse(){
   const rem=(7-days.length%7)%7;for(let i=1;i<=rem;i++){days.push({d:new Date(calYear,calMonth+1,i),other:true});}
   const selStr=calSelectedDate||todayStr;
   const ventesSel=getVentesForDate(selStr);const totalSel=ventesSel.reduce((s,v)=>s+v.qty*v.prixUnit,0);
-  const byProdSel={};ventesSel.forEach(v=>{byProdSel[v.recetteNom]=(byProdSel[v.recetteNom]||0)+v.qty;});
+  const byProdSel={};ventesSel.filter(v=>!v.isComboWrapper&&!v.isComboComponent).forEach(v=>{byProdSel[v.recetteNom]=(byProdSel[v.recetteNom]||0)+v.qty;});
   const histAll=[...DB.historique].filter(h=>h.type==='vente').reverse();
   c.innerHTML=`
     <div class="kpi-grid">
@@ -2488,7 +3272,32 @@ function renderCaisse(){
       <button class="btn btn-secondary" onclick="openModal('modal-correction')" style="flex:1;font-size:12px;">✏️ Corriger</button>
     </div>
     <div class="section-title">Ventes d\'aujourd\'hui</div>
-    <div class="card"><div class="card-body">${Object.keys(byProdToday).length===0?'<div style="color:var(--text3);font-size:12px;text-align:center;padding:10px;">Aucune vente aujourd\'hui</div>':Object.entries(byProdToday).sort((a,b)=>a[0]>b[0]?1:-1).map(([nom,qty])=>{const r=DB.recettes.find(x=>x.nom===nom);return`<div class="list-item"><div><div class="list-name">${nom}</div><div class="list-sub">${r?fmtDH(qty*r.prix):''}</div></div><span style="font-weight:600;">×${qty}</span></div>`;}).join('')}</div></div>
+    ${(()=>{
+      const combosToday=getCombosVentesStats(ventesAujourd);
+      const hasProds=Object.keys(byProdToday).length>0;
+      const hasCombos=combosToday.length>0;
+      if(!hasProds&&!hasCombos)return '<div class="card"><div class="card-body"><div style="color:var(--text3);font-size:12px;text-align:center;padding:10px;">Aucune vente aujourd\'hui</div></div></div>';
+      let html='';
+      if(hasCombos){
+        html+='<div class="card" style="margin-bottom:6px;"><div class="card-body">'+combosToday.map(c=>{
+          const slotsHtml=Object.entries(c.bySlot).map(([slot,prods])=>{
+            const items=Object.entries(prods).sort((a,b)=>b[1]-a[1]).map(([nom,qty])=>`<span style="background:var(--surface);border-radius:8px;padding:1px 6px;margin-right:3px;display:inline-block;font-size:10px;">${nom} <strong>×${qty}</strong></span>`).join('');
+            return `<div style="font-size:11px;padding:2px 0;"><span style="font-size:9px;font-weight:700;color:#E66B3D;text-transform:uppercase;margin-right:4px;">${slot} :</span>${items}</div>`;
+          }).join('');
+          return `<div style="border-top:0.5px solid var(--border);padding:8px 0;">
+            <div class="list-item" style="border:none;padding:0 0 4px 0;">
+              <div><div class="list-name">🍱 ${c.nom}</div><div class="list-sub">${fmtDH(c.ca)}</div></div>
+              <span style="font-weight:600;">×${c.nb}</span>
+            </div>
+            <div style="background:#FCE5D6;border-radius:6px;padding:4px 8px;margin-top:4px;">${slotsHtml||'<span style="font-size:11px;color:var(--text3);">Pas de détail</span>'}</div>
+          </div>`;
+        }).join('')+'</div></div>';
+      }
+      if(hasProds){
+        html+='<div class="card"><div class="card-body">'+(hasCombos?'<div style="font-size:11px;color:var(--text3);font-weight:600;margin-bottom:6px;">Produits hors menu</div>':'')+Object.entries(byProdToday).sort((a,b)=>a[0]>b[0]?1:-1).map(([nom,qty])=>{const r=DB.recettes.find(x=>x.nom===nom);return`<div class="list-item"><div><div class="list-name">${nom}</div><div class="list-sub">${r?fmtDH(qty*r.prix):''}</div></div><span style="font-weight:600;">×${qty}</span></div>`;}).join('')+'</div></div>';
+      }
+      return html;
+    })()}
     ${_buildTopProduitsSection(totalVentes)}
     <div class="section-title">Calendrier des ventes</div>
     <div class="card"><div class="card-body" style="padding:12px;">
@@ -2501,7 +3310,34 @@ function renderCaisse(){
       <div class="cal-grid">${days.map(({d,other})=>{const ds=fmtDate(d);const isToday=ds===todayStr;const isSel=ds===selStr;const hasData=datesWithVentes.has(ds)&&!other;return`<button class="cal-day ${other?'other-month':''} ${hasData?'has-data':''} ${isSel?'selected':''} ${isToday&&!isSel?'today':''}" onclick="selectCalDay('${ds}')">${d.getDate()}</button>`;}).join('')}</div>
     </div></div>
     <div class="section-title">Détail du ${new Date(selStr+'T12:00:00').toLocaleDateString('fr-FR',{day:'2-digit',month:'long'})}</div>
-    <div class="card"><div class="card-body">${ventesSel.length===0?`<div style="color:var(--text3);font-size:12px;text-align:center;padding:10px;">Aucune vente ce jour</div>`:`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-size:12px;color:var(--text3);">Total ventes</span><span class="badge badge-green">${fmtDH(totalSel)}</span></div>`+Object.entries(byProdSel).sort((a,b)=>a[0]>b[0]?1:-1).map(([nom,qty])=>{const r=DB.recettes.find(x=>x.nom===nom);return`<div class="list-item"><div class="list-name">${nom}</div><span style="font-size:12px;color:var(--text3);">×${qty} = ${r?fmtDH(qty*r.prix):'? DH'}</span></div>`;}).join('')}${_buildFermetureJour(selStr)}</div></div>
+    ${(()=>{
+      const combosSel=getCombosVentesStats(ventesSel);
+      const hasProds=Object.keys(byProdSel).length>0;
+      const hasCombos=combosSel.length>0;
+      if(!hasProds&&!hasCombos&&ventesSel.length===0)return `<div class="card"><div class="card-body"><div style="color:var(--text3);font-size:12px;text-align:center;padding:10px;">Aucune vente ce jour</div>${_buildFermetureJour(selStr)}</div></div>`;
+      let html=`<div class="card" style="margin-bottom:6px;"><div class="card-body"><div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-size:12px;color:var(--text3);">Total ventes</span><span class="badge badge-green">${fmtDH(totalSel)}</span></div></div></div>`;
+      if(hasCombos){
+        html+='<div class="card" style="margin-bottom:6px;"><div class="card-body">'+combosSel.map(c=>{
+          const slotsHtml=Object.entries(c.bySlot).map(([slot,prods])=>{
+            const items=Object.entries(prods).sort((a,b)=>b[1]-a[1]).map(([nom,qty])=>`<span style="background:var(--surface);border-radius:8px;padding:1px 6px;margin-right:3px;display:inline-block;font-size:10px;">${nom} <strong>×${qty}</strong></span>`).join('');
+            return `<div style="font-size:11px;padding:2px 0;"><span style="font-size:9px;font-weight:700;color:#E66B3D;text-transform:uppercase;margin-right:4px;">${slot} :</span>${items}</div>`;
+          }).join('');
+          return `<div style="border-top:0.5px solid var(--border);padding:6px 0;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-size:13px;font-weight:600;">🍱 ${c.nom}</span>
+              <span style="font-size:12px;color:var(--text3);">×${c.nb} = ${fmtDH(c.ca)}</span>
+            </div>
+            <div style="background:#FCE5D6;border-radius:6px;padding:4px 8px;margin-top:4px;">${slotsHtml||'<span style="font-size:11px;color:var(--text3);">Pas de détail</span>'}</div>
+          </div>`;
+        }).join('')+'</div></div>';
+      }
+      if(hasProds){
+        html+='<div class="card"><div class="card-body">'+(hasCombos?'<div style="font-size:11px;color:var(--text3);font-weight:600;margin-bottom:6px;">Produits hors menu</div>':'')+Object.entries(byProdSel).sort((a,b)=>a[0]>b[0]?1:-1).map(([nom,qty])=>{const r=DB.recettes.find(x=>x.nom===nom);return`<div class="list-item"><div class="list-name">${nom}</div><span style="font-size:12px;color:var(--text3);">×${qty} = ${r?fmtDH(qty*r.prix):'? DH'}</span></div>`;}).join('')+'</div></div>';
+      }
+      const ferm=_buildFermetureJour(selStr);
+      if(ferm)html+=`<div class="card"><div class="card-body">${ferm}</div></div>`;
+      return html;
+    })()}
     <div class="section-title">Historique & Fermetures</div>
     ${_buildHistoriqueSection(histAll)}
     ${_buildFermeturesSection()}
@@ -2946,7 +3782,7 @@ function calcPeriode(dateDebut, dateFin){
   var margeNetteAvecPerte=margeBruteAvecPerte-chargesFixes-chargesVar;
   var jours=new Set(ventesP.map(function(v){return fmtDate(new Date(v.date));})).size;
   var byProd={};
-  ventesP.forEach(function(v){ byProd[v.recetteNom]=(byProd[v.recetteNom]||0)+v.qty; });
+  ventesP.forEach(function(v){ if(v.isComboWrapper||v.isComboComponent)return; byProd[v.recetteNom]=(byProd[v.recetteNom]||0)+v.qty; });
   var topProds=Object.entries(byProd).sort(function(a,b){return b[1]-a[1];});
   return { ca:ca, units:units, coutMat:coutMat, coutMatAvecPerte:coutMatAvecPerte,
     margeBrute:margeBrute, margeBruteAvecPerte:margeBruteAvecPerte,
@@ -3329,10 +4165,115 @@ window.saveSeuilCommande=async function(name){
 
 // ==================== KPI ====================
 function getCAParMois(){const map={};DB.ventes.forEach(v=>{const mk=monthKey(new Date(v.date));map[mk]=(map[mk]||0)+v.qty*v.prixUnit;});return map;}
-function getUnitsParMois(){const map={};DB.ventes.forEach(v=>{const mk=monthKey(new Date(v.date));map[mk]=(map[mk]||0)+v.qty;});return map;}
+// Ne compte PAS les composants de combo en unités (le wrapper compte pour 1 = 1 combo)
+function getUnitsParMois(){const map={};DB.ventes.forEach(v=>{if(v.isComboComponent)return;const mk=monthKey(new Date(v.date));map[mk]=(map[mk]||0)+v.qty;});return map;}
 let kpiView='total',kpiCalYear=new Date().getFullYear(),kpiCalMonth=new Date().getMonth(),chartPeriod=6,caChart=null;
 // produitCalYear/Month are now unified with kpiCalYear/Month for shared month selector
 let produitPeriode='mois'; // 'mois' | 'total' — shared between "Par mois" and "Par produit" views
+let produitMenuView='split'; // 'split' = détaillé hors/en menu | 'total' = cumulé avec marge proratée
+// Vue "Par jour" — sélection de date via calendrier
+let kpiDailySelectedDate=null,kpiDailyCalMonth=new Date().getMonth(),kpiDailyCalYear=new Date().getFullYear();
+
+function getCAParJour(){const map={};DB.ventes.forEach(v=>{const ds=fmtDate(new Date(v.date));map[ds]=(map[ds]||0)+v.qty*v.prixUnit;});return map;}
+function getCombosVentesStats(ventesArr){
+  // Compte 1 vente par instance (basée sur le wrapper) et somme le CA (wrapper + suppléments composants)
+  // Agrège aussi le détail des composants par slot et par produit
+  // Source unique pour le détail : si une instance a un wrapper avec comboComposants, on l'utilise
+  // sinon on retombe sur les ventes isComboComponent (anciens combos sans snapshot)
+  const map={};
+  // Phase 1 : repérer les instances dont le wrapper contient comboComposants
+  const wrapperHasComposants=new Set();
+  (ventesArr||[]).forEach(v=>{
+    if(v.isComboWrapper&&Array.isArray(v.comboComposants)&&v.comboComposants.length>0&&v.comboInstanceId){
+      wrapperHasComposants.add(v.comboInstanceId);
+    }
+  });
+  // Phase 2 : agréger en évitant les doubles comptages
+  (ventesArr||[]).forEach(v=>{
+    if(!v.comboId)return;
+    if(!map[v.comboId])map[v.comboId]={comboNom:v.comboNom||'?',instances:new Set(),ca:0,bySlot:{},byProduct:{}};
+    const m=map[v.comboId];
+    if(v.comboInstanceId)m.instances.add(v.comboInstanceId);
+    m.ca+=(v.qty||1)*(v.prixUnit||0);
+    if(v.isComboWrapper&&Array.isArray(v.comboComposants)&&v.comboComposants.length>0){
+      // Source = composants stockés sur le wrapper (snapshot à la vente)
+      v.comboComposants.forEach(c=>{
+        const slot=c.slotLabel||'Choix';
+        if(!m.bySlot[slot])m.bySlot[slot]={};
+        m.bySlot[slot][c.recetteNom]=(m.bySlot[slot][c.recetteNom]||0)+(v.qty||1);
+        m.byProduct[c.recetteNom]=(m.byProduct[c.recetteNom]||0)+(v.qty||1);
+      });
+    } else if(v.isComboComponent){
+      // Source de fallback : ne compter QUE si l'instance n'a pas de wrapper avec composants
+      if(wrapperHasComposants.has(v.comboInstanceId))return;
+      const slot=v.slotLabel||'Choix';
+      if(!m.bySlot[slot])m.bySlot[slot]={};
+      m.bySlot[slot][v.recetteNom]=(m.bySlot[slot][v.recetteNom]||0)+(v.qty||1);
+      m.byProduct[v.recetteNom]=(m.byProduct[v.recetteNom]||0)+(v.qty||1);
+    } else if(!v.isComboWrapper){
+      // Combos très anciens (proratisés sans flags) : compte par produit
+      m.byProduct[v.recetteNom]=(m.byProduct[v.recetteNom]||0)+(v.qty||1);
+    }
+  });
+  return Object.entries(map).map(([id,m])=>({
+    id,nom:m.comboNom,nb:m.instances.size,ca:m.ca,bySlot:m.bySlot,byProduct:m.byProduct
+  })).sort((a,b)=>b.nb-a.nb);
+}
+// Helper inline : retourne le HTML des menus vendus sans section-title (à intégrer dans une autre carte)
+function buildCombosInlineHtml(ventesArr){
+  const stats=getCombosVentesStats(ventesArr);
+  if(stats.length===0)return '';
+  return stats.map(c=>{
+    const slotsHtml=Object.entries(c.bySlot).map(([slot,prods])=>{
+      const items=Object.entries(prods).sort((a,b)=>b[1]-a[1]).map(([nom,qty])=>`<span style="background:var(--surface);border-radius:8px;padding:1px 6px;margin-right:3px;display:inline-block;font-size:10px;">${nom} <strong>×${qty}</strong></span>`).join('');
+      return `<div style="font-size:11px;padding:2px 0;"><span style="font-size:9px;font-weight:700;color:#E66B3D;text-transform:uppercase;margin-right:4px;">${slot} :</span>${items}</div>`;
+    }).join('');
+    return `<div style="border-top:0.5px solid var(--border);padding:8px 0;">
+      <div class="list-item" style="border:none;padding:0 0 4px 0;">
+        <div><div class="list-name">🍱 ${c.nom}</div><div class="list-sub">${fmtDH(c.ca)}</div></div>
+        <span style="font-weight:600;">×${c.nb}</span>
+      </div>
+      <div style="background:#FCE5D6;border-radius:6px;padding:4px 8px;margin-top:4px;">${slotsHtml||'<span style="font-size:11px;color:var(--text3);">Pas de détail</span>'}</div>
+    </div>`;
+  }).join('');
+}
+
+function buildTopCombosSection(ventesArr,titleSuffix){
+  const stats=getCombosVentesStats(ventesArr);
+  if(stats.length===0)return '';
+  const max=Math.max(...stats.map(s=>s.nb),1);
+  return `<div class="section-title">🍱 Menus vendus${titleSuffix?' — '+titleSuffix:''}</div>
+    <div class="card"><div class="card-body">${stats.map(s=>{
+      const slotsHtml=Object.keys(s.bySlot).length>0
+        ?Object.entries(s.bySlot).map(([slot,prods])=>{
+          const items=Object.entries(prods).sort((a,b)=>b[1]-a[1]).map(([nom,qty])=>`<span style="background:var(--surface);border-radius:8px;padding:1px 6px;margin-right:3px;display:inline-block;font-size:10px;">${nom} <strong>×${qty}</strong></span>`).join('');
+          return `<div style="font-size:11px;padding:2px 0;"><span style="font-size:9px;font-weight:700;color:#E66B3D;text-transform:uppercase;margin-right:4px;">${slot} :</span>${items}</div>`;
+        }).join('')
+        :Object.entries(s.byProduct||{}).sort((a,b)=>b[1]-a[1]).map(([nom,qty])=>`<span style="background:var(--surface);border-radius:8px;padding:1px 6px;margin-right:3px;display:inline-block;font-size:10px;">${nom} <strong>×${qty}</strong></span>`).join('');
+      return `<div style="border-top:0.5px solid var(--border);padding:8px 0;">
+        <div class="list-item" style="border:none;padding:0 0 4px 0;">
+          <div><div class="list-name">🍱 ${s.nom}</div><div class="list-sub">${fmtDH(s.ca)}</div></div>
+          <div style="text-align:right;"><span style="font-weight:600;">×${s.nb}</span><div class="progress-bar" style="width:80px;margin-top:4px;"><div class="progress-fill" style="width:${(s.nb/max*100).toFixed(0)}%;background:#E66B3D;"></div></div></div>
+        </div>
+        <div style="background:#FCE5D6;border-radius:6px;padding:4px 8px;margin-top:4px;">${slotsHtml||'<span style="font-size:11px;color:var(--text3);">Pas de détail disponible</span>'}</div>
+      </div>`;
+    }).join('')}</div></div>`;
+}
+function getUnitsParJour(){const map={};DB.ventes.forEach(v=>{if(v.isComboComponent)return;const ds=fmtDate(new Date(v.date));map[ds]=(map[ds]||0)+v.qty;});return map;}
+function calcMargeJour(ds){
+  const caJour=getCAParJour()[ds]||0;
+  const taux=getTauxPerteActif();
+  let coutMat=0,coutMatAvecPerte=0;
+  const mk=ds.slice(0,7);
+  DB.ventes.filter(v=>fmtDate(new Date(v.date))===ds).forEach(v=>{
+    const r=DB.recettes.find(x=>x.id===v.recetteId);if(!r)return;
+    coutMat+=calcCoutMatiere(r,false,mk)*v.qty;
+    coutMatAvecPerte+=calcCoutMatiere(r,true,mk)*v.qty;
+  });
+  const margeBrute=caJour-coutMat;
+  const margeBruteAvecPerte=caJour-coutMatAvecPerte;
+  return {ca:caJour,coutMat,coutMatAvecPerte,margeBrute,margeBruteAvecPerte,taux};
+}
 
 function calcMargeNeteMois(mk){
   const caMonth=getCAParMois()[mk]||0;
@@ -3362,7 +4303,7 @@ function renderKPI(){
 
   // ---- Données globales (vue Total) ----
   const totalCA=DB.ventes.reduce((s,v)=>s+v.qty*v.prixUnit,0);
-  const totalUnits=DB.ventes.reduce((s,v)=>s+v.qty,0);
+  const totalUnits=DB.ventes.filter(v=>!v.isComboComponent).reduce((s,v)=>s+v.qty,0);
   const jours=new Set(DB.ventes.map(v=>fmtDate(new Date(v.date)))).size;
   const nbInv=DB.inventaires.length;
   const mps=Object.keys(DB.matieres);
@@ -3373,14 +4314,16 @@ function renderKPI(){
   const tauxPerte=getTauxPerteActif();
   const tauxPerteInfo=getLabelTauxPerte();
   // Utilise CMP global (tous achats) pour le coût matière total
-  let totalMargeBrute=0,totalCoutMat=0,totalCoutMatAvecPerte=0;
+  // Coût matière calculé sur les vraies recettes (les wrappers de combo n'ont pas de recetteId valide → ignorés)
+  let totalCoutMat=0,totalCoutMatAvecPerte=0;
   DB.ventes.forEach(v=>{
     const r=DB.recettes.find(x=>x.id===v.recetteId);if(!r)return;
     const mk=monthKey(new Date(v.date));
     const cout=calcCoutMatiere(r,false,mk),coutP=calcCoutMatiere(r,true,mk);
     totalCoutMat+=cout*v.qty; totalCoutMatAvecPerte+=coutP*v.qty;
-    totalMargeBrute+=(r.prix-cout)*v.qty;
   });
+  // Marge brute = CA - coût matière (cohérent avec les combos : le CA inclut le prix combo et le coût les composants)
+  const totalMargeBrute=totalCA-totalCoutMat;
   // Total achats en valeur
   const totalAchatsGlobal=DB.commandes.reduce((s,c)=>s+c.prixTotal,0);
   let totalChargesFixes=0,nbMoisDepuisLancement=0;
@@ -3408,12 +4351,18 @@ function renderKPI(){
     chargesFixes:cfMois,chargesVar:cvMois,margeBrute:margeBruteMois,totalAchats:achatsMois,
     margeNetteAvecPerte:margeNetteAvecPerteMois,taux:tauxPerteMois}=calcMargeNeteMois(mk);
   const byProdMonth={};
-  DB.ventes.filter(v=>monthKey(new Date(v.date))===mk).forEach(v=>{byProdMonth[v.recetteNom]=(byProdMonth[v.recetteNom]||0)+v.qty;});
+  DB.ventes.filter(v=>monthKey(new Date(v.date))===mk&&!v.isComboWrapper&&!v.isComboComponent).forEach(v=>{byProdMonth[v.recetteNom]=(byProdMonth[v.recetteNom]||0)+v.qty;});
 
   // ---- Label header ----
+  const _kpiDailyLabel=(()=>{
+    if(!kpiDailySelectedDate)return MOIS[kpiDailyCalMonth]+' '+kpiDailyCalYear;
+    const _d=new Date(kpiDailySelectedDate+'T12:00:00');
+    return _d.toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'});
+  })();
   document.getElementById('kpi-mode-label').textContent=
     kpiView==='total'?'Vue globale':
     kpiView==='monthly'?'Par mois — '+MOIS[kpiCalMonth]+' '+kpiCalYear:
+    kpiView==='daily'?'Par jour — '+_kpiDailyLabel:
     (produitPeriode==='mois'?'Par produit — '+MOIS[kpiCalMonth]+' '+kpiCalYear:'Par produit — depuis lancement');
 
   // ---- Sélecteur mois partagé (vue Par mois) ----
@@ -3516,9 +4465,88 @@ function renderKPI(){
       <div class="kpi-card"><div class="kpi-label">Surcoût perte</div><div class="kpi-value" style="color:var(--amber);">${(coutMatAvecPerteMois-coutMatMois).toFixed(0)}</div><div class="kpi-sub">DH</div></div>
       <div class="kpi-card"><div class="kpi-label">Impact marge</div><div class="kpi-value" style="color:var(--danger);">-${(margeNetteMois-margeNetteAvecPerteMois).toFixed(0)}</div><div class="kpi-sub">DH</div></div>
     </div>`:''}
-    <div class="section-title">Top produits — ${MOIS[kpiCalMonth]} ${kpiCalYear}</div>
-    <div class="card"><div class="card-body">${Object.keys(byProdMonth).length===0?'<div style="color:var(--text3);font-size:12px;text-align:center;padding:10px;">Aucune vente ce mois</div>':Object.entries(byProdMonth).sort((a,b)=>b[1]-a[1]).map(([nom,qty])=>{const r=DB.recettes.find(x=>x.nom===nom);const max=Math.max(...Object.values(byProdMonth));return`<div class="list-item"><div><div class="list-name">${nom}</div><div class="list-sub">${r?fmtDH(qty*r.prix):''}</div></div><div style="text-align:right;"><span style="font-weight:600;">${qty}</span><div class="progress-bar" style="width:80px;margin-top:4px;"><div class="progress-fill" style="width:${(qty/max*100).toFixed(0)}%;background:var(--accent);"></div></div></div></div>`;}).join('')}</div></div>
+    <div class="section-title">Détail des ventes — ${MOIS[kpiCalMonth]} ${kpiCalYear}</div>
+    ${(()=>{
+      const ventesMois=DB.ventes.filter(v=>monthKey(new Date(v.date))===mk);
+      const combosHtml=buildCombosInlineHtml(ventesMois);
+      const hasProds=Object.keys(byProdMonth).length>0;
+      const hasCombos=combosHtml.length>0;
+      if(!hasProds&&!hasCombos)return '<div class="card"><div class="card-body"><div style="color:var(--text3);font-size:12px;text-align:center;padding:10px;">Aucune vente ce mois</div></div></div>';
+      let html='';
+      if(hasCombos)html+=`<div class="card" style="margin-bottom:6px;"><div class="card-body">${combosHtml}</div></div>`;
+      if(hasProds){
+        const max=Math.max(...Object.values(byProdMonth));
+        html+='<div class="card"><div class="card-body">'+(hasCombos?'<div style="font-size:11px;color:var(--text3);font-weight:600;margin-bottom:6px;">Produits hors menu</div>':'')+Object.entries(byProdMonth).sort((a,b)=>b[1]-a[1]).map(([nom,qty])=>{const r=DB.recettes.find(x=>x.nom===nom);return`<div class="list-item"><div><div class="list-name">${nom}</div><div class="list-sub">${r?fmtDH(qty*r.prix):''}</div></div><div style="text-align:right;"><span style="font-weight:600;">${qty}</span><div class="progress-bar" style="width:80px;margin-top:4px;"><div class="progress-fill" style="width:${(qty/max*100).toFixed(0)}%;background:var(--accent);"></div></div></div></div>`;}).join('')+'</div></div>';
+      }
+      return html;
+    })()}
     ${hasCurve?`<div class="section-title">Évolution CA mensuel</div><div class="card"><div class="card-body" style="padding:12px;"><div class="pill-row" style="margin-bottom:8px;"><div class="pill ${chartPeriod===3?'active':''}" onclick="setChartPeriod(3)">3 mois</div><div class="pill ${chartPeriod===6?'active':''}" onclick="setChartPeriod(6)">6 mois</div><div class="pill ${chartPeriod===12?'active':''}" onclick="setChartPeriod(12)">12 mois</div></div><div style="height:180px;"><canvas id="ca-chart"></canvas></div></div></div>`:''}`:''}`;
+
+  // ============================================================
+  // VUE PAR JOUR — calendrier + KPIs du jour sélectionné
+  // ============================================================
+  const todayStrKpi=fmtDate(new Date());
+  const selDayStr=kpiDailySelectedDate||todayStrKpi;
+  const datesWithVentesKpi=new Set();DB.ventes.forEach(v=>datesWithVentesKpi.add(fmtDate(new Date(v.date))));
+  const firstDayD=new Date(kpiDailyCalYear,kpiDailyCalMonth,1);const lastDayD=new Date(kpiDailyCalYear,kpiDailyCalMonth+1,0);
+  const startWDayD=(firstDayD.getDay()+6)%7;const daysD=[];
+  for(let i=0;i<startWDayD;i++){const d=new Date(kpiDailyCalYear,kpiDailyCalMonth,-(startWDayD-1-i));daysD.push({d,other:true});}
+  for(let i=1;i<=lastDayD.getDate();i++){daysD.push({d:new Date(kpiDailyCalYear,kpiDailyCalMonth,i),other:false});}
+  const remD=(7-daysD.length%7)%7;for(let i=1;i<=remD;i++){daysD.push({d:new Date(kpiDailyCalYear,kpiDailyCalMonth+1,i),other:true});}
+  const ventesJour=DB.ventes.filter(v=>fmtDate(new Date(v.date))===selDayStr);
+  const caJour=ventesJour.reduce((s,v)=>s+v.qty*v.prixUnit,0);
+  const unitsJour=ventesJour.filter(v=>!v.isComboComponent).reduce((s,v)=>s+v.qty,0);
+  const byProdJour={};ventesJour.filter(v=>!v.isComboWrapper&&!v.isComboComponent).forEach(v=>{byProdJour[v.recetteNom]=(byProdJour[v.recetteNom]||0)+v.qty;});
+  const margeJour=calcMargeJour(selDayStr);
+  const dayDateLabel=new Date(selDayStr+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
+  const htmlDaily=`
+    <div class="card" style="overflow:hidden;margin-bottom:12px;">
+      <div class="card-body" style="padding:12px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <button onclick="kpiDailyPrevMonth()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text2);">‹</button>
+          <span style="font-weight:600;font-size:14px;">${MOIS[kpiDailyCalMonth]} ${kpiDailyCalYear}</span>
+          <button onclick="kpiDailyNextMonth()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text2);">›</button>
+        </div>
+        <div class="cal-header-row">${['L','M','M','J','V','S','D'].map(d=>`<div class="cal-wday">${d}</div>`).join('')}</div>
+        <div class="cal-grid">${daysD.map(({d,other})=>{const ds=fmtDate(d);const isToday=ds===todayStrKpi;const isSel=ds===selDayStr;const hasData=datesWithVentesKpi.has(ds)&&!other;return`<button class="cal-day ${other?'other-month':''} ${hasData?'has-data':''} ${isSel?'selected':''} ${isToday&&!isSel?'today':''}" onclick="kpiSelectDay('${ds}')">${d.getDate()}</button>`;}).join('')}</div>
+      </div>
+    </div>
+    <div style="font-size:12px;color:var(--text3);text-transform:capitalize;margin-bottom:8px;">${dayDateLabel}</div>
+    <div class="kpi-grid">
+      <div class="kpi-card"><div class="kpi-label">CA du jour</div><div class="kpi-value">${caJour.toFixed(0)}</div><div class="kpi-sub">DH</div></div>
+      <div class="kpi-card"><div class="kpi-label">Unités vendues</div><div class="kpi-value">${unitsJour}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Panier moyen</div><div class="kpi-value">${unitsJour>0?(caJour/unitsJour).toFixed(1):'—'}</div><div class="kpi-sub">DH/unité</div></div>
+      <div class="kpi-card"><div class="kpi-label">Produits différents</div><div class="kpi-value">${Object.keys(byProdJour).length}</div></div>
+    </div>
+    ${isMaitre?`
+    <div class="section-title">Marges — ${dayDateLabel}</div>
+    <div class="kpi-grid">
+      <div class="kpi-card"><div class="kpi-label">Marge brute</div><div class="kpi-value" style="color:var(--accent);">${margeJour.margeBrute.toFixed(0)}</div><div class="kpi-sub">DH — ${caJour>0?(margeJour.margeBrute/caJour*100).toFixed(0):'0'}%</div></div>
+      <div class="kpi-card"><div class="kpi-label">Coût mat. (CMP)</div><div class="kpi-value" style="color:var(--danger);">${margeJour.coutMat.toFixed(0)}</div><div class="kpi-sub">DH</div></div>
+    </div>
+    ${margeJour.taux>0?`
+    <div style="background:${tauxPerteInfo.isMesure?'var(--accent-light)':'var(--amber-light)'};border-radius:8px;padding:8px 10px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-size:11px;color:${tauxPerteInfo.isMesure?'var(--accent)':'var(--amber)'};">${tauxPerteInfo.isMesure?'✅':'⚙️'} ${tauxPerteInfo.label}</span>
+      <span style="font-weight:700;color:${tauxPerteInfo.isMesure?'var(--accent)':'var(--amber)'};">${(margeJour.taux*100).toFixed(1)}%</span>
+    </div>
+    <div class="kpi-grid">
+      <div class="kpi-card"><div class="kpi-label">Coût mat. avec perte</div><div class="kpi-value" style="color:var(--danger);">${margeJour.coutMatAvecPerte.toFixed(0)}</div><div class="kpi-sub">DH</div></div>
+      <div class="kpi-card"><div class="kpi-label">Marge brute avec perte</div><div class="kpi-value" style="color:${margeJour.margeBruteAvecPerte>=0?'var(--accent)':'var(--danger)'};">${margeJour.margeBruteAvecPerte.toFixed(0)}</div><div class="kpi-sub">DH</div></div>
+    </div>`:''}`:''}
+    <div class="section-title">Détail des ventes du jour</div>
+    ${(()=>{
+      const combosHtml=buildCombosInlineHtml(ventesJour);
+      const hasProds=Object.keys(byProdJour).length>0;
+      const hasCombos=combosHtml.length>0;
+      if(!hasProds&&!hasCombos)return '<div class="card"><div class="card-body"><div style="color:var(--text3);font-size:12px;text-align:center;padding:10px;">Aucune vente ce jour</div></div></div>';
+      let html='';
+      if(hasCombos)html+=`<div class="card" style="margin-bottom:6px;"><div class="card-body">${combosHtml}</div></div>`;
+      if(hasProds){
+        const max=Math.max(...Object.values(byProdJour),1);
+        html+='<div class="card"><div class="card-body">'+(hasCombos?'<div style="font-size:11px;color:var(--text3);font-weight:600;margin-bottom:6px;">Produits hors menu</div>':'')+Object.entries(byProdJour).sort((a,b)=>b[1]-a[1]).map(([nom,qty])=>{const r=DB.recettes.find(x=>x.nom===nom);return`<div class="list-item"><div><div class="list-name">${nom}</div><div class="list-sub">${r?fmtDH(qty*r.prix):''}</div></div><div style="text-align:right;"><span style="font-weight:600;">×${qty}</span><div class="progress-bar" style="width:80px;margin-top:4px;"><div class="progress-fill" style="width:${(qty/max*100).toFixed(0)}%;background:var(--accent);"></div></div></div></div>`;}).join('')+'</div></div>';
+      }
+      return html;
+    })()}`;
 
   // ============================================================
   // VUE PAR PRODUIT — sélecteur Par mois / Depuis lancement + classements uniquement
@@ -3529,9 +4557,10 @@ function renderKPI(){
     <div class="pill-row">
       <div class="pill ${kpiView==='total'?'active':''}" onclick="setKpiView('total')">Total</div>
       <div class="pill ${kpiView==='monthly'?'active':''}" onclick="setKpiView('monthly')">Par mois</div>
+      <div class="pill ${kpiView==='daily'?'active':''}" onclick="setKpiView('daily')" style="background:${kpiView==='daily'?'var(--blue)':'var(--blue-light)'};color:${kpiView==='daily'?'#fff':'var(--blue)'};border-color:var(--blue);">📅 Par jour</div>
       <div class="pill ${kpiView==='produit'?'active':''}" onclick="setKpiView('produit')" style="background:${kpiView==='produit'?'var(--purple)':'var(--purple-light)'};color:${kpiView==='produit'?'#fff':'var(--purple)'};border-color:var(--purple);">Par produit</div>
     </div>
-    ${kpiView==='total'?htmlTotal:kpiView==='monthly'?htmlMonthly:htmlProduit}
+    ${kpiView==='total'?htmlTotal:kpiView==='monthly'?htmlMonthly:kpiView==='daily'?htmlDaily:htmlProduit}
     <div style="height:8px;"></div>`;
   if(hasCurve)requestAnimationFrame(()=>drawCurve(caParMois));
 }
@@ -3540,35 +4569,109 @@ function renderKpiProduitHTML(){
   const taux=getTauxPerteActif();
   const dateLancementKPI=DB.dateLancement||null;
 
-  // Compute stats per product using CMP par mois
+  // Compute stats per product split between "hors menu" and "en menu"
+  // Pour les ventes en menu, le CA et la marge sont proratés selon les MARGES NORMALES des composants
+  // Exemple : marge normale A=7DH, B=5DH (total normal 12DH). Si menu réalise 10DH de marge réelle :
+  //  A reçoit 7/12 × 10 = 5,83DH ; B reçoit 5/12 × 10 = 4,17DH.
   function getStatsForVentes(ventes){
     var byProd={};
+    var wrapperByInst={},compsByInst={};
     ventes.forEach(function(v){
-      var r=DB.recettes.find(function(x){return x.id===v.recetteId;});
-      if(!r)return;
-      var key=v.recetteNom;
-      var mk=monthKey(new Date(v.date));
+      if(v.comboInstanceId){
+        if(v.isComboWrapper)wrapperByInst[v.comboInstanceId]=v;
+        else if(v.isComboComponent){
+          if(!compsByInst[v.comboInstanceId])compsByInst[v.comboInstanceId]=[];
+          compsByInst[v.comboInstanceId].push(v);
+        }
+      }
+    });
+    function emptyStats(){return {qty:0,ca:0,coutMat:0,coutMatPerte:0,marge:0,margePerte:0,pct:0,pctPerte:0};}
+    function ensureProd(r,key,mk){
       if(!byProd[key])byProd[key]={
-        nom:key, cat:r.cat||'', image:r.image||'', prix:r.prix,
-        qtyTotal:0, ca:0,
-        coutMatTotal:0, coutMatPerteTotal:0,
+        nom:key, cat:r.cat||'', image:r.image||'', prix:r.prix, id:r.id,
         margeBruteUnit: r.prix - calcCoutMatiere(r,false,mk),
         margeBruteUnitPerte: r.prix - calcCoutMatiere(r,true,mk),
-        id:r.id
+        horsMenu:emptyStats(),
+        enMenu:emptyStats(),
+        total:emptyStats()
       };
-      var cout=calcCoutMatiere(r,false,mk)*v.qty;
-      var coutPerte=calcCoutMatiere(r,true,mk)*v.qty;
-      byProd[key].qtyTotal+=v.qty;
-      byProd[key].ca+=v.qty*v.prixUnit;
-      byProd[key].coutMatTotal+=cout;
-      byProd[key].coutMatPerteTotal+=coutPerte;
+      return byProd[key];
+    }
+    ventes.forEach(function(v){
+      if(v.isComboWrapper)return;
+      var r=DB.recettes.find(function(x){return x.id===v.recetteId;});
+      if(!r)return;
+      var mk=monthKey(new Date(v.date));
+      var costPerUnit=calcCoutMatiere(r,false,mk);
+      var costPerteUnit=calcCoutMatiere(r,true,mk);
+      var p=ensureProd(r,v.recetteNom,mk);
+      if(v.isComboComponent && v.comboInstanceId){
+        var wrapper=wrapperByInst[v.comboInstanceId];
+        var allComps=compsByInst[v.comboInstanceId]||[];
+        var instanceData=allComps.map(function(c){
+          var cr=DB.recettes.find(function(x){return x.id===c.recetteId;});
+          if(!cr)return null;
+          var cmk=monthKey(new Date(c.date));
+          var cCost=calcCoutMatiere(cr,false,cmk);
+          var cCostPerte=calcCoutMatiere(cr,true,cmk);
+          var qty=c.qty||1;
+          return {
+            ref:c, recette:cr, qty:qty,
+            cost: cCost*qty,
+            costPerte: cCostPerte*qty,
+            normMargin: Math.max(0,(cr.prix - cCost))*qty,
+            normMarginPerte: Math.max(0,(cr.prix - cCostPerte))*qty,
+            suppPrice: (c.prixUnit||0)*qty
+          };
+        }).filter(Boolean);
+        var totalNormMargin=instanceData.reduce(function(s,d){return s+d.normMargin;},0);
+        var totalNormMarginPerte=instanceData.reduce(function(s,d){return s+d.normMarginPerte;},0);
+        var totalCost=instanceData.reduce(function(s,d){return s+d.cost;},0);
+        var totalCostPerte=instanceData.reduce(function(s,d){return s+d.costPerte;},0);
+        var wrapperPrice=wrapper?(wrapper.qty||1)*(wrapper.prixUnit||0):0;
+        var actualMenuMargin=wrapperPrice-totalCost;
+        var actualMenuMarginPerte=wrapperPrice-totalCostPerte;
+        var meData=instanceData.find(function(d){return d.ref===v;});
+        if(!meData){meData={cost:costPerUnit*v.qty,costPerte:costPerteUnit*v.qty,normMargin:Math.max(0,r.prix-costPerUnit)*v.qty,normMarginPerte:Math.max(0,r.prix-costPerteUnit)*v.qty,suppPrice:(v.prixUnit||0)*v.qty};}
+        var nb=instanceData.length||1;
+        var share=totalNormMargin>0?(meData.normMargin/totalNormMargin):(1/nb);
+        var sharePerte=totalNormMarginPerte>0?(meData.normMarginPerte/totalNormMarginPerte):(1/nb);
+        var myMenuMargin=actualMenuMargin*share;
+        var myMenuMarginPerte=actualMenuMarginPerte*sharePerte;
+        var myMargeTotal=myMenuMargin+meData.suppPrice;
+        var myMargePerteTotal=myMenuMarginPerte+meData.suppPrice;
+        var myCA=meData.cost+myMargeTotal;
+        p.enMenu.qty+=v.qty;
+        p.enMenu.ca+=myCA;
+        p.enMenu.coutMat+=meData.cost;
+        p.enMenu.coutMatPerte+=meData.costPerte;
+        p.enMenu.marge+=myMargeTotal;
+        p.enMenu.margePerte+=myMargePerteTotal;
+      } else if(!v.comboId){
+        p.horsMenu.qty+=v.qty;
+        p.horsMenu.ca+=v.qty*v.prixUnit;
+        p.horsMenu.coutMat+=costPerUnit*v.qty;
+        p.horsMenu.coutMatPerte+=costPerteUnit*v.qty;
+        p.horsMenu.marge+=(v.prixUnit-costPerUnit)*v.qty;
+        p.horsMenu.margePerte+=(v.prixUnit-costPerteUnit)*v.qty;
+      }
     });
     Object.keys(byProd).forEach(function(k){
       var p=byProd[k];
-      p.margeBruteTotal=p.ca-p.coutMatTotal;
-      p.margeBruteTotalPerte=p.ca-p.coutMatPerteTotal;
-      p.pctBrute=p.ca>0?(p.margeBruteTotal/p.ca*100):0;
-      p.pctBruteUnit=p.prix>0?(p.margeBruteUnit/p.prix*100):0;
+      p.horsMenu.pct=p.horsMenu.ca>0?p.horsMenu.marge/p.horsMenu.ca*100:0;
+      p.horsMenu.pctPerte=p.horsMenu.ca>0?p.horsMenu.margePerte/p.horsMenu.ca*100:0;
+      p.enMenu.pct=p.enMenu.ca>0?p.enMenu.marge/p.enMenu.ca*100:0;
+      p.enMenu.pctPerte=p.enMenu.ca>0?p.enMenu.margePerte/p.enMenu.ca*100:0;
+      p.total={
+        qty:p.horsMenu.qty+p.enMenu.qty,
+        ca:p.horsMenu.ca+p.enMenu.ca,
+        coutMat:p.horsMenu.coutMat+p.enMenu.coutMat,
+        coutMatPerte:p.horsMenu.coutMatPerte+p.enMenu.coutMatPerte,
+        marge:p.horsMenu.marge+p.enMenu.marge,
+        margePerte:p.horsMenu.margePerte+p.enMenu.margePerte
+      };
+      p.total.pct=p.total.ca>0?p.total.marge/p.total.ca*100:0;
+      p.total.pctPerte=p.total.ca>0?p.total.margePerte/p.total.ca*100:0;
     });
     return Object.values(byProd);
   }
@@ -3585,30 +4688,71 @@ function renderKpiProduitHTML(){
   }
 
   var stats=getStatsForVentes(ventesScope);
+  stats=stats.filter(function(s){return s.total.qty>0;});
 
-  function produitRow(s, sortVal, maxVal, showQty, rank){
+  function produitRowSplit(p, sortVal, maxVal, showQty, rank){
     var pct=maxVal>0?(sortVal/maxVal*100):0;
-    var colorVal=s.pctBrute>=50?'var(--accent)':s.pctBrute>=30?'var(--amber)':'var(--danger)';
-    var hasPrix=s.prix>0&&s.coutMatTotal>0;
+    var tot=p.total;
+    var totalColor=tot.pct>=50?'var(--accent)':tot.pct>=30?'var(--amber)':'var(--danger)';
+    var hasHors=p.horsMenu.qty>0;
+    var hasMenu=p.enMenu.qty>0;
+    function block(label,st,color){
+      return '<div style="background:var(--surface2);border-radius:6px;padding:8px;">'+
+        '<div style="font-size:10px;color:'+color+';font-weight:700;text-transform:uppercase;margin-bottom:4px;">'+label+' ×'+st.qty+'</div>'+
+        '<div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px;"><span style="color:var(--text3);">CA</span><span style="font-weight:600;">'+fmtDH(st.ca)+'</span></div>'+
+        '<div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px;"><span style="color:var(--text3);">Coût mat.</span><span style="font-weight:600;color:var(--danger);">'+fmtDH(st.coutMat)+'</span></div>'+
+        '<div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;border-top:0.5px solid var(--border);padding-top:3px;margin-top:3px;"><span>Marge</span><span style="color:'+color+';">'+fmtDH(st.marge)+' ('+st.pct.toFixed(1)+'%)</span></div>'+
+      '</div>';
+    }
     return '<div class="card" style="margin-bottom:8px;"><div class="card-body" style="padding:10px 12px;">'+
       '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">'+
         '<div style="font-size:13px;font-weight:700;color:var(--text3);min-width:22px;flex-shrink:0;">#'+rank+'</div>'+
-        (s.image?'<img src="'+s.image+'" style="width:40px;height:40px;object-fit:cover;border-radius:8px;flex-shrink:0;">'
+        (p.image?'<img src="'+p.image+'" style="width:40px;height:40px;object-fit:cover;border-radius:8px;flex-shrink:0;">'
           :'<div style="width:40px;height:40px;border-radius:8px;background:var(--surface2);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px;">📦</div>')+
         '<div style="flex:1;min-width:0;">'+
-          '<div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+s.nom+'</div>'+
-          '<div style="font-size:11px;color:var(--text3);">'+(s.cat||'')+'</div>'+
+          '<div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+p.nom+'</div>'+
+          '<div style="font-size:11px;color:var(--text3);">'+(p.cat||'')+' · Marge unit. réf. '+fmtDH(p.margeBruteUnit)+'</div>'+
         '</div>'+
-        (hasPrix?'<span class="badge '+(s.pctBrute>=50?'badge-green':s.pctBrute>=30?'badge-amber':'badge-red')+'">'+s.pctBrute.toFixed(1)+'%</span>':'<span class="badge badge-amber">?</span>')+
+      '</div>'+
+      '<div style="display:grid;grid-template-columns:'+(hasHors&&hasMenu?'1fr 1fr':'1fr')+';gap:6px;">'+
+        (hasHors?block('Hors menu',p.horsMenu,'var(--text2)'):'')+
+        (hasMenu?block('🍱 En menu',p.enMenu,'#E66B3D'):'')+
+      '</div>'+
+      ((hasHors&&hasMenu)?'<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:6px;border-top:0.5px solid var(--border);font-weight:700;">'+
+        '<span style="font-size:12px;">Total : ×'+tot.qty+' · CA '+fmtDH(tot.ca)+'</span>'+
+        '<span style="font-size:13px;color:'+totalColor+';">'+fmtDH(tot.marge)+' ('+tot.pct.toFixed(1)+'%)</span>'+
+      '</div>':'')+
+      '<div style="height:6px;background:var(--surface2);border-radius:3px;overflow:hidden;margin-top:6px;">'+
+        '<div style="height:100%;width:'+Math.max(0,Math.min(100,pct)).toFixed(0)+'%;background:'+totalColor+';border-radius:3px;"></div>'+
+      '</div>'+
+    '</div></div>';
+  }
+
+  function produitRowTotal(p, sortVal, maxVal, showQty, rank){
+    var pct=maxVal>0?(sortVal/maxVal*100):0;
+    var tot=p.total;
+    var colorVal=tot.pct>=50?'var(--accent)':tot.pct>=30?'var(--amber)':'var(--danger)';
+    var hasMenu=p.enMenu.qty>0;
+    return '<div class="card" style="margin-bottom:8px;"><div class="card-body" style="padding:10px 12px;">'+
+      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">'+
+        '<div style="font-size:13px;font-weight:700;color:var(--text3);min-width:22px;flex-shrink:0;">#'+rank+'</div>'+
+        (p.image?'<img src="'+p.image+'" style="width:40px;height:40px;object-fit:cover;border-radius:8px;flex-shrink:0;">'
+          :'<div style="width:40px;height:40px;border-radius:8px;background:var(--surface2);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px;">📦</div>')+
+        '<div style="flex:1;min-width:0;">'+
+          '<div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+p.nom+'</div>'+
+          '<div style="font-size:11px;color:var(--text3);">'+(p.cat||'')+'</div>'+
+        '</div>'+
+        '<span class="badge '+(tot.pct>=50?'badge-green':tot.pct>=30?'badge-amber':'badge-red')+'">'+tot.pct.toFixed(1)+'%</span>'+
       '</div>'+
       '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;font-size:11px;margin-bottom:8px;">'+
-        '<div style="background:var(--surface2);border-radius:6px;padding:6px;"><div style="color:var(--text3);">Prix vente</div><div style="font-weight:600;">'+fmtDH(s.prix)+'</div></div>'+
-        '<div style="background:var(--surface2);border-radius:6px;padding:6px;"><div style="color:var(--text3);">Marge/unité</div><div style="font-weight:600;color:'+colorVal+';">'+fmtDH(s.margeBruteUnit)+'</div></div>'+
-        '<div style="background:var(--surface2);border-radius:6px;padding:6px;"><div style="color:var(--text3);">'+(showQty?'Qté vendue':'CA total')+'</div><div style="font-weight:600;">'+(showQty?'×'+s.qtyTotal:fmtDH(s.ca))+'</div></div>'+
+        '<div style="background:var(--surface2);border-radius:6px;padding:6px;"><div style="color:var(--text3);">Prix vente</div><div style="font-weight:600;">'+fmtDH(p.prix)+'</div></div>'+
+        '<div style="background:var(--surface2);border-radius:6px;padding:6px;"><div style="color:var(--text3);">Marge/unité réf.</div><div style="font-weight:600;color:'+colorVal+';">'+fmtDH(p.margeBruteUnit)+'</div></div>'+
+        '<div style="background:var(--surface2);border-radius:6px;padding:6px;"><div style="color:var(--text3);">'+(showQty?'Qté vendue':'CA total')+'</div><div style="font-weight:600;">'+(showQty?'×'+tot.qty:fmtDH(tot.ca))+'</div></div>'+
       '</div>'+
+      (hasMenu?'<div style="font-size:10px;color:#E66B3D;font-weight:600;background:#FCE5D6;padding:4px 8px;border-radius:6px;margin-bottom:6px;">🍱 dont '+p.enMenu.qty+' en menu (marge proratée : '+fmtDH(p.enMenu.marge)+') · '+p.horsMenu.qty+' hors menu (marge : '+fmtDH(p.horsMenu.marge)+')</div>':'')+
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'+
         '<span style="font-size:11px;color:var(--text3);">Marge brute totale</span>'+
-        '<span style="font-weight:700;font-size:13px;color:'+colorVal+';">'+fmtDH(s.margeBruteTotal)+'</span>'+
+        '<span style="font-weight:700;font-size:13px;color:'+colorVal+';">'+fmtDH(tot.marge)+'</span>'+
       '</div>'+
       '<div style="height:6px;background:var(--surface2);border-radius:3px;overflow:hidden;">'+
         '<div style="height:100%;width:'+Math.max(0,Math.min(100,pct)).toFixed(0)+'%;background:'+colorVal+';border-radius:3px;"></div>'+
@@ -3616,10 +4760,11 @@ function renderKpiProduitHTML(){
       (taux>0?
         '<div style="margin-top:6px;padding:6px 8px;background:var(--amber-light);border-radius:6px;display:flex;justify-content:space-between;align-items:center;">'+
           '<span style="font-size:11px;color:var(--amber);">Avec perte ('+((taux)*100).toFixed(1)+'%)</span>'+
-          '<span style="font-size:12px;font-weight:600;color:var(--amber);">'+fmtDH(s.margeBruteTotalPerte)+' | '+fmtDH(s.margeBruteUnitPerte)+'/u</span>'+
+          '<span style="font-size:12px;font-weight:600;color:var(--amber);">'+fmtDH(tot.margePerte)+' | '+fmtDH(p.margeBruteUnitPerte)+'/u</span>'+
         '</div>':'')+
     '</div></div>';
   }
+  var produitRow=(produitMenuView==='split')?produitRowSplit:produitRowTotal;
 
   // Sélecteur Par mois / Depuis lancement
   var html='';
@@ -3627,6 +4772,12 @@ function renderKpiProduitHTML(){
     +'<div style="flex:1;padding:10px 14px;cursor:pointer;text-align:center;font-size:13px;font-weight:500;background:'+(produitPeriode==='mois'?'var(--accent)':'var(--surface2)')+';color:'+(produitPeriode==='mois'?'#fff':'var(--text2)')+';" onclick="setProduitPeriode(\'mois\')">Par mois</div>'
     +'<div style="flex:1;padding:10px 14px;cursor:pointer;text-align:center;font-size:13px;font-weight:500;background:'+(produitPeriode==='total'?'var(--accent)':'var(--surface2)')+';color:'+(produitPeriode==='total'?'#fff':'var(--text2)')+';" onclick="setProduitPeriode(\'total\')">Depuis lancement</div>'
   +'</div></div>';
+  // Sélecteur Hors menu / Avec menus (proraté)
+  html+='<div class="card" style="margin-bottom:8px;overflow:hidden;"><div style="display:flex;">'
+    +'<div style="flex:1;padding:8px 12px;cursor:pointer;text-align:center;font-size:12px;font-weight:500;background:'+(!produitWithMenus?'var(--blue)':'var(--surface2)')+';color:'+(!produitWithMenus?'#fff':'var(--text2)')+';" onclick="setProduitWithMenus(false)">Hors menu</div>'
+    +'<div style="flex:1;padding:8px 12px;cursor:pointer;text-align:center;font-size:12px;font-weight:500;background:'+(produitWithMenus?'var(--blue)':'var(--surface2)')+';color:'+(produitWithMenus?'#fff':'var(--text2)')+';" onclick="setProduitWithMenus(true)">🍱 Avec menus (proraté)</div>'
+  +'</div></div>'
+  +(produitWithMenus?'<div style="font-size:11px;color:var(--text3);background:var(--blue-light);padding:6px 10px;border-radius:6px;margin-bottom:8px;">💡 Le CA des produits vendus en menu est proraté selon leur prix de base par rapport aux autres composants du menu.</div>':'');
 
   // Navigateur de mois (seulement si mode "par mois")
   if(produitPeriode==='mois'){
@@ -3679,7 +4830,11 @@ function drawCurve(caParMois){
   caChart=new Chart(canvas,{type:'line',data:{labels,datasets:[{data,borderColor:'#1D9E75',backgroundColor:'rgba(29,158,117,0.08)',borderWidth:2,pointBackgroundColor:'#1D9E75',pointRadius:4,pointHoverRadius:6,fill:true,tension:0.35}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.parsed.y.toFixed(0)} DH`}}},scales:{x:{grid:{display:false},ticks:{font:{size:10},color:'#888780'}},y:{grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{size:10},color:'#888780',callback:v=>v.toFixed(0)+' DH'}}}}});
 }
 window.setKpiView=function(v){kpiView=v;renderKPI();};
+window.kpiSelectDay=function(ds){kpiDailySelectedDate=ds;renderKPI();};
+window.kpiDailyPrevMonth=function(){kpiDailyCalMonth--;if(kpiDailyCalMonth<0){kpiDailyCalMonth=11;kpiDailyCalYear--;}renderKPI();};
+window.kpiDailyNextMonth=function(){kpiDailyCalMonth++;if(kpiDailyCalMonth>11){kpiDailyCalMonth=0;kpiDailyCalYear++;}renderKPI();};
 window.setProduitPeriode=function(v){produitPeriode=v;renderKPI();};
+window.setProduitWithMenus=function(v){produitWithMenus=v;renderKPI();};
 window.prevProduitMonth=function(){kpiCalMonth--;if(kpiCalMonth<0){kpiCalMonth=11;kpiCalYear--;}renderKPI();};
 window.nextProduitMonth=function(){kpiCalMonth++;if(kpiCalMonth>11){kpiCalMonth=0;kpiCalYear++;}renderKPI();};
 window.setChartPeriod=function(p){chartPeriod=p;renderKPI();};
