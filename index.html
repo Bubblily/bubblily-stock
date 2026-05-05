@@ -4772,12 +4772,12 @@ function renderKpiProduitHTML(){
     +'<div style="flex:1;padding:10px 14px;cursor:pointer;text-align:center;font-size:13px;font-weight:500;background:'+(produitPeriode==='mois'?'var(--accent)':'var(--surface2)')+';color:'+(produitPeriode==='mois'?'#fff':'var(--text2)')+';" onclick="setProduitPeriode(\'mois\')">Par mois</div>'
     +'<div style="flex:1;padding:10px 14px;cursor:pointer;text-align:center;font-size:13px;font-weight:500;background:'+(produitPeriode==='total'?'var(--accent)':'var(--surface2)')+';color:'+(produitPeriode==='total'?'#fff':'var(--text2)')+';" onclick="setProduitPeriode(\'total\')">Depuis lancement</div>'
   +'</div></div>';
-  // Sélecteur Hors menu / Avec menus (proraté)
+  // Sélecteur Détaillé / Total
   html+='<div class="card" style="margin-bottom:8px;overflow:hidden;"><div style="display:flex;">'
-    +'<div style="flex:1;padding:8px 12px;cursor:pointer;text-align:center;font-size:12px;font-weight:500;background:'+(!produitWithMenus?'var(--blue)':'var(--surface2)')+';color:'+(!produitWithMenus?'#fff':'var(--text2)')+';" onclick="setProduitWithMenus(false)">Hors menu</div>'
-    +'<div style="flex:1;padding:8px 12px;cursor:pointer;text-align:center;font-size:12px;font-weight:500;background:'+(produitWithMenus?'var(--blue)':'var(--surface2)')+';color:'+(produitWithMenus?'#fff':'var(--text2)')+';" onclick="setProduitWithMenus(true)">🍱 Avec menus (proraté)</div>'
+    +'<div style="flex:1;padding:8px 12px;cursor:pointer;text-align:center;font-size:12px;font-weight:500;background:'+(produitMenuView==='split'?'var(--blue)':'var(--surface2)')+';color:'+(produitMenuView==='split'?'#fff':'var(--text2)')+';" onclick="setProduitMenuView(\'split\')">📊 Détaillé (hors / en menu)</div>'
+    +'<div style="flex:1;padding:8px 12px;cursor:pointer;text-align:center;font-size:12px;font-weight:500;background:'+(produitMenuView==='total'?'var(--blue)':'var(--surface2)')+';color:'+(produitMenuView==='total'?'#fff':'var(--text2)')+';" onclick="setProduitMenuView(\'total\')">∑ Total (cumulé)</div>'
   +'</div></div>'
-  +(produitWithMenus?'<div style="font-size:11px;color:var(--text3);background:var(--blue-light);padding:6px 10px;border-radius:6px;margin-bottom:8px;">💡 Le CA des produits vendus en menu est proraté selon leur prix de base par rapport aux autres composants du menu.</div>':'');
+  +(produitMenuView==='total'?'<div style="font-size:11px;color:var(--text3);background:var(--blue-light);padding:6px 10px;border-radius:6px;margin-bottom:8px;">💡 La marge des produits vendus en menu est proratée selon leur <strong>marge normale</strong> par rapport aux autres composants. Ex : marge A=7DH, B=5DH, menu réalise 10DH → A reçoit 5,83DH (58,3%), B reçoit 4,17DH (41,7%).</div>':'<div style="font-size:11px;color:var(--text3);background:var(--surface2);padding:6px 10px;border-radius:6px;margin-bottom:8px;">💡 Vue détaillée : pour chaque produit, séparation des unités vendues hors menu et en menu, avec marge correspondante.</div>');
 
   // Navigateur de mois (seulement si mode "par mois")
   if(produitPeriode==='mois'){
@@ -4800,13 +4800,13 @@ function renderKpiProduitHTML(){
 
   // Sort rankings
   var byMargeUnit=[...stats].sort(function(a,b){return b.margeBruteUnit-a.margeBruteUnit;});
-  var byMargeTotal=[...stats].sort(function(a,b){return b.margeBruteTotal-a.margeBruteTotal;});
-  var maxMargeTot=Math.max.apply(null,stats.map(function(s){return s.margeBruteTotal;}));
+  var byMargeTotal=[...stats].sort(function(a,b){return b.total.marge-a.total.marge;});
+  var maxMargeTot=Math.max.apply(null,stats.map(function(s){return s.total.marge;}));
   var maxMargeUnit=Math.max.apply(null,stats.map(function(s){return s.margeBruteUnit;}));
 
-  // Ranking 1: by unit margin
-  html+='<div class="section-title" style="margin-top:0;">🏆 Classement par marge unitaire</div>';
-  html+='<div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Produits les plus rentables à l\'unité</div>';
+  // Ranking 1: by unit margin (référence)
+  html+='<div class="section-title" style="margin-top:0;">🏆 Classement par marge unitaire (référence)</div>';
+  html+='<div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Produits les plus rentables à l\'unité (prix vente − coût matière)</div>';
   byMargeUnit.forEach(function(s,idx){
     html+=produitRow(s, s.margeBruteUnit, maxMargeUnit, false, idx+1);
   });
@@ -4815,7 +4815,7 @@ function renderKpiProduitHTML(){
   html+='<div class="section-title">💰 Classement par marge totale</div>';
   html+='<div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Produits qui génèrent le plus de marge sur la période</div>';
   byMargeTotal.forEach(function(s,idx){
-    html+=produitRow(s, s.margeBruteTotal, maxMargeTot, true, idx+1);
+    html+=produitRow(s, s.total.marge, maxMargeTot, true, idx+1);
   });
 
   return html;
@@ -4834,7 +4834,7 @@ window.kpiSelectDay=function(ds){kpiDailySelectedDate=ds;renderKPI();};
 window.kpiDailyPrevMonth=function(){kpiDailyCalMonth--;if(kpiDailyCalMonth<0){kpiDailyCalMonth=11;kpiDailyCalYear--;}renderKPI();};
 window.kpiDailyNextMonth=function(){kpiDailyCalMonth++;if(kpiDailyCalMonth>11){kpiDailyCalMonth=0;kpiDailyCalYear++;}renderKPI();};
 window.setProduitPeriode=function(v){produitPeriode=v;renderKPI();};
-window.setProduitWithMenus=function(v){produitWithMenus=v;renderKPI();};
+window.setProduitMenuView=function(v){produitMenuView=v;renderKPI();};
 window.prevProduitMonth=function(){kpiCalMonth--;if(kpiCalMonth<0){kpiCalMonth=11;kpiCalYear--;}renderKPI();};
 window.nextProduitMonth=function(){kpiCalMonth++;if(kpiCalMonth>11){kpiCalMonth=0;kpiCalYear++;}renderKPI();};
 window.setChartPeriod=function(p){chartPeriod=p;renderKPI();};
