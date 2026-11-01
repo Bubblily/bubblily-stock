@@ -802,7 +802,7 @@ const MOIS_SHORT=['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Aoû','Sep','Oct
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400);}
 
 // ==================== STATE ====================
-let DB={recettes:[],combos:[],matieres:{},stock:{},stockPrev:{},stockPrevDate:null,stockInitDate:null,stockDates:{},bons:[],paiementsPart:[],bonsConfig:{},inventaires:[],historique:[],ventes:[],prixMatieres:{},seuilsCommande:{},chargesFixes:[],chargesVariables:[],chargesExceptionnelles:[],sauvegardes:[],dateLancement:null,pertTheorique:0,commandes:[],fermetures:[]};
+let DB={recettes:[],combos:[],matieres:{},stock:{},stockPrev:{},stockPrevDate:null,stockInitDate:null,stockDates:{},stockExclus:{},bons:[],paiementsPart:[],bonsConfig:{},inventaires:[],historique:[],ventes:[],prixMatieres:{},seuilsCommande:{},chargesFixes:[],chargesVariables:[],chargesExceptionnelles:[],sauvegardes:[],dateLancement:null,pertTheorique:0,commandes:[],fermetures:[]};
 let currentUser=null, userRole=null, unsubscribe=null;
 
 // ==================== AUTH ====================
@@ -892,6 +892,7 @@ function startFirebaseSync(){
     DB.stockPrevDate=data.stockPrevDate||null;
     DB.stockInitDate=data.stockInitDate||null;
     DB.stockDates=data.stockDates||{};
+    DB.stockExclus=data.stockExclus||{};
     DB.inventaires=data.inventaires?Object.values(data.inventaires).sort((a,b)=>a.date>b.date?1:-1):[];
     DB.historique=data.historique?Object.values(data.historique).sort((a,b)=>a.date>b.date?1:-1):[];
     DB.ventes=data.ventes?Object.values(data.ventes).sort((a,b)=>a.date>b.date?1:-1):[];
@@ -1664,6 +1665,21 @@ function getTotalAchatsMois(mk){
   return DB.commandes.filter(c => monthKey(new Date(c.date)) === mk).reduce((s,c)=>s+c.prixTotal, 0);
 }
 
+// ==================== ARTICLES EXCLUS ====================
+// Un article exclu n'apparaît plus dans le stock, l'inventaire, les achats, les alertes ni les fournisseurs.
+// Ses données (recettes, ventes, historique) restent intactes ; on peut le réafficher à tout moment.
+function matiereExclue(name){return !!(DB.stockExclus&&DB.stockExclus[name]);}
+function matieresActives(){return Object.keys(DB.matieres).filter(n=>!matiereExclue(n));}
+let stockExclusOpen=false;
+window.toggleStockExclusOpen=function(){stockExclusOpen=!stockExclusOpen;renderStock();};
+window.setExclusion=async function(encName,exclure){
+  if(userRole!=='maitre'){toast('⛔ Réservé au compte Maître');return;}
+  const name=decodeURIComponent(encName);
+  await updateFirebase({['stockExclus/'+name]:exclure?true:null});
+  if(exclure)closeModal('modal-mp-detail');
+  toast(exclure?`🚫 ${name} exclu du stock`:`✅ ${name} réaffiché`);
+};
+
 // ==================== INVENTAIRE ====================
 // Comptage par article : chaque matière a sa propre date de dernier comptage (DB.stockDates).
 // Le stock théorique d'un article = dernier stock compté − ventes depuis SON comptage.
@@ -1671,7 +1687,7 @@ let invMap={};   // sid -> nom de la matière (lignes du formulaire)
 function invSid(name){return name.replace(/[^a-zA-Z0-9]/g,'X');}
 
 function buildInventaireForm(){
-  const list=document.getElementById('inv-list');const mps=Object.keys(DB.matieres);
+  const list=document.getElementById('inv-list');const mps=matieresActives();
   const search=document.getElementById('inv-search');if(search)search.value='';
   invMap={};
   if(mps.length===0){list.innerHTML='<div style="color:var(--text3);font-size:13px;text-align:center;padding:20px;">Aucune matière première.</div>';return;}
@@ -1950,7 +1966,7 @@ window.saveIngredientMaison=async function(){
 
 // ==================== COMMANDES (ACHATS) ====================
 function buildCommandeForm(){
-  const mps=Object.keys(DB.matieres).sort();
+  const mps=matieresActives().sort();
   const sel=document.getElementById('cmd-matiere');
   sel.innerHTML=mps.length===0
     ?'<option value="">Aucune matière première</option>'
@@ -2085,7 +2101,7 @@ window.deleteAchat=async function(fbKey){
 };
 
 function renderStock(){
-  const c=document.getElementById('stock-content');const mps=Object.keys(DB.matieres);
+  const c=document.getElementById('stock-content');const mps=matieresActives();
   const isMaitre=userRole==='maitre';
   const dl=document.getElementById('stock-date-label');
   if(DB.stockInitDate){const d=new Date(DB.stockInitDate);dl.textContent='Depuis le '+d.toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric'});}
@@ -2278,6 +2294,13 @@ function renderStock(){
     <div class="section-title">📋 Historique des inventaires (${lastInvNum})</div>
     ${lastInvNum===0?'<div style="color:var(--text3);font-size:12px;text-align:center;padding:16px;">Aucun inventaire</div>':
     [...DB.inventaires].sort((a,b)=>b.date>a.date?1:-1).slice(0,5).map(h=>`<div class="card" style="margin-bottom:6px;"><div class="card-body" style="padding:10px 12px;"><div style="display:flex;justify-content:space-between;align-items:center;"><div><div class="list-name">📦 Inventaire${h.partiel&&h.matieres?(h.matieres.length===1?' — '+h.matieres[0]:' — '+h.matieres.length+' articles'):''}</div><div class="list-sub">${new Date(h.date).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div></div><div style="text-align:right;">${h.tauxPerteGlobal!=null?`<span class="badge ${h.tauxPerteGlobal>10?'badge-red':h.tauxPerteGlobal>5?'badge-amber':'badge-green'}">Période ${h.tauxPerteGlobal.toFixed(1)}%</span>${h.tauxPerteCumuleValeur!=null?`<br><span style="font-size:10px;color:var(--text3);">Cumulé ${h.tauxPerteCumuleValeur.toFixed(1)}%</span>`:''}`:'<span class="badge badge-blue">Saisi</span>'}</div></div></div></div>`).join('')}
+    ${(()=>{
+      if(userRole!=='maitre')return '';
+      const ex=Object.keys(DB.matieres).filter(matiereExclue).sort();
+      if(ex.length===0)return '';
+      return `<button class="btn btn-secondary" onclick="toggleStockExclusOpen()" style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;"><span>🚫 Articles exclus</span><span style="display:flex;align-items:center;gap:6px;"><span class="badge badge-blue">${ex.length}</span><span>${stockExclusOpen?'⌄':'›'}</span></span></button>`+
+      (stockExclusOpen?ex.map(n=>`<div class="card" style="margin-top:6px;"><div class="card-body" style="padding:8px 12px;display:flex;align-items:center;justify-content:space-between;"><div><div class="list-name">${n}</div><div class="list-sub">${DB.matieres[n]?.unit||''}${DB.matieres[n]?.cat?' · '+DB.matieres[n].cat:''}</div></div><button class="btn btn-sm btn-primary" onclick="setExclusion('${encodeURIComponent(n)}',false)">Réafficher</button></div></div>`).join(''):'');
+    })()}
     <div style="height:8px;"></div>`;
 }
 
@@ -2310,6 +2333,9 @@ window.showMPDetail=function(name){
     </div>`).join('')}
     <div class="section-title">Utilisé dans ${recettesUsing.length} recette(s)</div>
     ${recettesUsing.map(r=>{const ing=r.ingredients.find(i=>i.name.trim()===name);return`<div class="list-item"><div class="list-name">${r.nom}</div><span class="badge badge-blue">${ing?.qty} ${ing?.unit}/unité</span></div>`;}).join('')}`;
+  if(userRole==='maitre')document.getElementById('mp-detail-content').insertAdjacentHTML('beforeend',
+    `<button class="btn btn-secondary" style="margin-top:14px;" onclick="setExclusion('${encodeURIComponent(name)}',true)">🚫 Exclure cet article du stock</button>
+     <div style="font-size:11px;color:var(--text3);margin-top:4px;text-align:center;">Il ne s'affichera plus dans le stock, l'inventaire ni les alertes. Réaffichable à tout moment.</div>`);
   openModal('modal-mp-detail');
 };
 
@@ -4668,7 +4694,7 @@ function renderKPI(){
   const totalUnits=DB.ventes.filter(v=>!v.isComboComponent).reduce((s,v)=>s+v.qty,0);
   const jours=new Set(DB.ventes.map(v=>fmtDate(new Date(v.date)))).size;
   const nbInv=DB.inventaires.length;
-  const mps=Object.keys(DB.matieres);
+  const mps=matieresActives();
   const hasSnapshot=DB.stockPrev&&Object.keys(DB.stockPrev).length>0&&nbInv>1;
   const lastInv=DB.inventaires.length>0?[...DB.inventaires].sort((a,b)=>b.date>a.date?1:-1)[0]:null;
   const prevDyn=calcPrevisionnel();
@@ -5307,7 +5333,7 @@ function getFournisseursData(){
     const f=cmd.fournisseur&&cmd.fournisseur.trim();
     if(!f)return;
     if(!map[f])map[f]={matieres:new Set(),dernierAchat:null,totalAchats:0,nbCommandes:0};
-    map[f].matieres.add(cmd.matiere);
+    if(!matiereExclue(cmd.matiere))map[f].matieres.add(cmd.matiere);
     map[f].totalAchats+=cmd.prixTotal||0;
     map[f].nbCommandes++;
     if(!map[f].dernierAchat||cmd.date>map[f].dernierAchat)map[f].dernierAchat=cmd.date;
