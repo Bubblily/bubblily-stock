@@ -308,7 +308,10 @@ body{font-family:-apple-system,'SF Pro Text','Helvetica Neue',sans-serif;backgro
   <div class="header">
     <div style="display:flex;align-items:center;justify-content:space-between;">
       <div><div class="header-title">🧾 Caisse</div><div class="header-sub">Ventes & historique</div></div>
-      <button class="btn btn-sm btn-danger" onclick="openModal('modal-fermeture')" style="font-size:12px;">🔒 Fermeture</button>
+      <div style="display:flex;gap:6px;">
+        <button class="btn btn-sm btn-purple" onclick="openModal('modal-bons')" style="font-size:12px;">🎟️ Bons</button>
+        <button class="btn btn-sm btn-danger" onclick="openModal('modal-fermeture')" style="font-size:12px;">🔒 Fermeture</button>
+      </div>
     </div>
   </div>
   <div class="content" id="caisse-content"></div>
@@ -532,12 +535,23 @@ body{font-family:-apple-system,'SF Pro Text','Helvetica Neue',sans-serif;backgro
   <div class="modal">
     <div class="modal-handle"></div>
     <div class="card-title" style="margin-bottom:4px;">Inventaire réel</div>
-    <div style="font-size:12px;color:var(--text3);margin-bottom:12px;">La perte sera calculée automatiquement par rapport à la consommation théorique</div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:10px;">Comptez article par article : appuyez sur <strong>✓</strong> pour enregistrer chaque ligne tout de suite. Les articles non comptés ne sont pas modifiés.</div>
+    <input class="input" id="inv-search" type="search" placeholder="🔍 Rechercher un article..." oninput="filterInvList()" style="margin-bottom:6px;">
     <div id="inv-list"></div>
     <div style="display:flex;gap:8px;margin-top:8px;">
-      <button class="btn btn-secondary" onclick="closeModal('modal-inventaire')">Annuler</button>
-      <button class="btn btn-primary" onclick="saveInventaire()">Valider l'inventaire</button>
+      <button class="btn btn-secondary" onclick="closeModal('modal-inventaire')">Fermer</button>
+      <button class="btn btn-primary" onclick="saveInventaire()">Valider les saisies</button>
     </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-bons">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="card-title" style="margin-bottom:2px;">🎟️ Bons Nta Chef</div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:10px;">Café offert ou réduction — Nta Chef rembourse 5 DH par bon</div>
+    <div id="bons-content"></div>
+    <button class="btn btn-secondary" style="margin-top:12px;" onclick="closeModal('modal-bons')">Fermer</button>
   </div>
 </div>
 
@@ -788,7 +802,7 @@ const MOIS_SHORT=['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Aoû','Sep','Oct
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400);}
 
 // ==================== STATE ====================
-let DB={recettes:[],combos:[],matieres:{},stock:{},stockPrev:{},stockPrevDate:null,stockInitDate:null,inventaires:[],historique:[],ventes:[],prixMatieres:{},seuilsCommande:{},chargesFixes:[],chargesVariables:[],chargesExceptionnelles:[],sauvegardes:[],dateLancement:null,pertTheorique:0,commandes:[],fermetures:[]};
+let DB={recettes:[],combos:[],matieres:{},stock:{},stockPrev:{},stockPrevDate:null,stockInitDate:null,stockDates:{},bons:[],paiementsPart:[],bonsConfig:{},inventaires:[],historique:[],ventes:[],prixMatieres:{},seuilsCommande:{},chargesFixes:[],chargesVariables:[],chargesExceptionnelles:[],sauvegardes:[],dateLancement:null,pertTheorique:0,commandes:[],fermetures:[]};
 let currentUser=null, userRole=null, unsubscribe=null;
 
 // ==================== AUTH ====================
@@ -877,6 +891,7 @@ function startFirebaseSync(){
     DB.stockPrev=data.stockPrev||{};
     DB.stockPrevDate=data.stockPrevDate||null;
     DB.stockInitDate=data.stockInitDate||null;
+    DB.stockDates=data.stockDates||{};
     DB.inventaires=data.inventaires?Object.values(data.inventaires).sort((a,b)=>a.date>b.date?1:-1):[];
     DB.historique=data.historique?Object.values(data.historique).sort((a,b)=>a.date>b.date?1:-1):[];
     DB.ventes=data.ventes?Object.values(data.ventes).sort((a,b)=>a.date>b.date?1:-1):[];
@@ -889,6 +904,9 @@ function startFirebaseSync(){
     DB.pertTheorique=data.pertTheorique||0;
     DB.sauvegardes=data.sauvegardes?Object.values(data.sauvegardes).sort((a,b)=>b.date>a.date?1:-1):[];
     DB.commandes=data.commandes?Object.entries(data.commandes).sort((a,b)=>a[1].date>b[1].date?1:-1).map(([k,v])=>({...v,_key:k})):[];
+    DB.bons=data.bonsPartenaires?Object.entries(data.bonsPartenaires).map(([k,v])=>({...v,_key:k})).sort((a,b)=>a.date>b.date?1:-1):[];
+    DB.paiementsPart=data.paiementsPartenaires?Object.entries(data.paiementsPartenaires).map(([k,v])=>({...v,_key:k})).sort((a,b)=>a.date>b.date?1:-1):[];
+    DB.bonsConfig=data.bonsConfig||{};
     DB.fermetures=data.fermetures?Object.values(data.fermetures).sort((a,b)=>b.date>a.date?1:-1):[];
     // fournisseursInfo : indexé par nom pour accès rapide
     const rawFI=data.fournisseursInfo||{};
@@ -910,6 +928,7 @@ function refreshCurrentScreen(){
   if(currentScreen==='kpi')renderKPI();
   if(currentScreen==='finance')renderFinance();
   if(currentScreen==='fournisseurs')renderFournisseurs();
+  if(document.getElementById('modal-bons')?.classList.contains('open'))renderBons();
 }
 
 function isIngredientMaison(r){return r.ingredientMaison===true;}
@@ -980,6 +999,7 @@ window.navigate=function(id){
 // ==================== MODALS ====================
 window.openModal=function(id){
   if(id==='modal-inventaire')buildInventaireForm();
+  if(id==='modal-bons')renderBons();
   if(id==='modal-vente')buildVenteForm();
   if(id==='modal-commande')buildCommandeForm();
   if(id==='modal-ingredient-maison')buildIngredientMaisonForm();
@@ -1645,63 +1665,96 @@ function getTotalAchatsMois(mk){
 }
 
 // ==================== INVENTAIRE ====================
+// Comptage par article : chaque matière a sa propre date de dernier comptage (DB.stockDates).
+// Le stock théorique d'un article = dernier stock compté − ventes depuis SON comptage.
+let invMap={};   // sid -> nom de la matière (lignes du formulaire)
+function invSid(name){return name.replace(/[^a-zA-Z0-9]/g,'X');}
+
 function buildInventaireForm(){
   const list=document.getElementById('inv-list');const mps=Object.keys(DB.matieres);
+  const search=document.getElementById('inv-search');if(search)search.value='';
+  invMap={};
   if(mps.length===0){list.innerHTML='<div style="color:var(--text3);font-size:13px;text-align:center;padding:20px;">Aucune matière première.</div>';return;}
   const prev=calcPrevisionnel();
   const groups={};
   mps.forEach(name=>{const cat=DB.matieres[name]?.cat||'Sans catégorie';if(!groups[cat])groups[cat]=[];groups[cat].push(name);});
-  // Trier les noms dans chaque groupe
   Object.keys(groups).forEach(cat=>groups[cat].sort());
   list.innerHTML=Object.entries(groups).sort((a,b)=>a[0]>b[0]?1:-1).map(([cat,names])=>
-    `<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:12px 0 6px;padding-bottom:4px;border-bottom:1px solid var(--border);">${cat}</div>`+
+    `<div class="inv-group"><div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:12px 0 6px;padding-bottom:4px;border-bottom:1px solid var(--border);">${cat}</div>`+
     names.map(name=>{
+      const sid=invSid(name);invMap[sid]=name;
       const p=prev[name]!==undefined?prev[name].toFixed(2):'—';
-      const sid=name.replace(/[^a-zA-Z0-9]/g,'X');
-      return`<div style="margin-bottom:8px;padding:8px 10px;background:var(--bg);border-radius:var(--radius-sm);border:0.5px solid var(--border);"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;"><span style="font-size:13px;font-weight:500;">${name} <span style="font-size:11px;color:var(--text3);font-weight:400;">${DB.matieres[name].unit}</span></span><span style="font-size:11px;color:var(--amber);">Théo: ${p}</span></div><input class="input" type="number" step="0.001" placeholder="Quantité réelle comptée" id="inv-${sid}"></div>`;
-    }).join('')
+      const q=(name+' '+cat).toLowerCase().replace(/"/g,'');
+      const dc=DB.stockDates&&DB.stockDates[name];
+      const dcTxt=dc?'Compté le '+new Date(dc).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'}):'Jamais compté';
+      return`<div class="inv-row" id="invrow-${sid}" data-q="${q}" style="margin-bottom:8px;padding:8px 10px;background:var(--bg);border-radius:var(--radius-sm);border:0.5px solid var(--border);">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;"><span style="font-size:13px;font-weight:500;">${name} <span style="font-size:11px;color:var(--text3);font-weight:400;">${DB.matieres[name].unit}</span></span><span style="font-size:11px;color:var(--amber);">Théo: ${p}</span></div>
+        <div style="font-size:10px;color:var(--text3);margin-bottom:5px;">${dcTxt}</div>
+        <div style="display:flex;gap:6px;"><input class="input" type="number" step="0.001" min="0" inputmode="decimal" placeholder="Quantité réelle comptée" id="inv-${sid}" onkeydown="if(event.key==='Enter')saveInvItem('${sid}')"><button class="btn btn-sm btn-primary" style="flex-shrink:0;min-width:44px;" onclick="saveInvItem('${sid}')">✓</button></div>
+        <div id="invres-${sid}"></div>
+      </div>`;
+    }).join('')+`</div>`
   ).join('');
+}
+
+window.filterInvList=function(){
+  const q=(document.getElementById('inv-search').value||'').trim().toLowerCase();
+  document.querySelectorAll('#inv-list .inv-row').forEach(r=>{r.style.display=(!q||r.dataset.q.includes(q))?'':'none';});
+  document.querySelectorAll('#inv-list .inv-group').forEach(g=>{
+    const visible=[...g.querySelectorAll('.inv-row')].some(r=>r.style.display!=='none');
+    g.style.display=visible?'':'none';
+  });
+};
+
+// Date de référence pour les articles jamais comptés individuellement :
+// dernier inventaire complet (ancien système), sinon date d'initialisation du stock.
+function getDateBaseComptage(){
+  const full=DB.inventaires.filter(i=>!i.partiel);
+  return full.length?full[full.length-1].date:DB.stockInitDate;
 }
 
 function calcPrevisionnel(){
   if(!DB.stockInitDate)return{};const prev={};
   // Point de départ = stock réel actuel (qui inclut déjà tous les achats)
   Object.keys(DB.matieres).forEach(name=>{prev[name]=DB.stock[name]||0;});
-  // Déduire uniquement la consommation théorique des ventes depuis le dernier inventaire
-  const lastInvDate=DB.inventaires.length>0?DB.inventaires[DB.inventaires.length-1].date:DB.stockInitDate;
-  DB.recettes.forEach(r=>{if(!r.ingredients)return;const ventes=DB.ventes.filter(v=>v.recetteId===r.id&&(!lastInvDate||v.date>=lastInvDate));const total=ventes.reduce((s,v)=>s+v.qty,0);r.ingredients.forEach(ing=>{const k=ing.name.trim();prev[k]=(prev[k]||0)-ing.qty*total;});});
+  const base=getDateBaseComptage();
+  // Déduire la consommation théorique des ventes depuis le dernier comptage DE CHAQUE ARTICLE
+  DB.recettes.forEach(r=>{
+    if(!r.ingredients)return;
+    const ventesR=DB.ventes.filter(v=>v.recetteId===r.id);
+    if(!ventesR.length)return;
+    r.ingredients.forEach(ing=>{
+      const k=ing.name.trim();
+      const since=(DB.stockDates&&DB.stockDates[k])||base;
+      const total=ventesR.reduce((s,v)=>(!since||v.date>=since)?s+v.qty:s,0);
+      prev[k]=(prev[k]||0)-ing.qty*total;
+    });
+  });
   Object.keys(prev).forEach(name=>{prev[name]=Math.max(0,prev[name]||0);});return prev;
 }
 
-window.saveInventaire=async function(){
-  const mps=Object.keys(DB.matieres);const newStock={};const pertes={};
+// Enregistre le comptage d'un ou plusieurs articles : entries = {nomMatiere: quantitéRéelle}
+async function enregistrerComptage(entries){
+  const names=Object.keys(entries);
+  if(names.length===0)return null;
   const prevTheo=calcPrevisionnel();
-  mps.forEach(name=>{
-    const sid=name.replace(/[^a-zA-Z0-9]/g,'X');
-    const inp=document.getElementById('inv-'+sid);
-    const val=parseFloat(inp?.value);
-    newStock[name]=isNaN(val)?(DB.stock[name]||0):val;
-    const theo=prevTheo[name]||0;
-    const reel=newStock[name];
-    const ecart=theo-reel;
-    const pertePct=theo>0?(ecart/theo*100):0;
-    const cmp=getCMPMatiere(name,null);
-    pertes[name]={theo,reel,ecart,pertePct,cmp};
+  const iso=new Date().toISOString();
+  const pertes={},newStock={},prevSnap={};
+  names.forEach(name=>{
+    const reel=entries[name],theo=prevTheo[name]||0,ecart=theo-reel;
+    pertes[name]={theo,reel,ecart,pertePct:theo>0?(ecart/theo*100):0,cmp:getCMPMatiere(name,null)};
+    newStock[name]=reel;prevSnap[name]=theo;
   });
 
-  // ── Taux de CET inventaire — pondération monétaire (Méthode A) ──────
-  // Σ(écart_kg × CMP_DH/kg) / Σ(théo_kg × CMP_DH/kg)
-  let valeurTheoInv=0, valeurEcartInv=0;
+  // Taux de perte de ce comptage — pondération monétaire (Méthode A)
+  let valeurTheoInv=0,valeurEcartInv=0;
   Object.values(pertes).forEach(p=>{
-    if(p.theo>0&&p.cmp>0){
-      valeurTheoInv+=p.theo*p.cmp;
-      if(p.ecart>0) valeurEcartInv+=p.ecart*p.cmp;
-    }
+    if(p.theo>0&&p.cmp>0){valeurTheoInv+=p.theo*p.cmp;if(p.ecart>0)valeurEcartInv+=p.ecart*p.cmp;}
   });
   const tauxPerteGlobal=valeurTheoInv>0?(valeurEcartInv/valeurTheoInv*100):0;
 
-  // ── Taux CUMULÉ depuis le début (Méthode A — valeur monétaire) ───────
-  let cumulValeurTheo=valeurTheoInv, cumulValeurEcart=valeurEcartInv;
+  // Taux CUMULÉ depuis le début
+  let cumulValeurTheo=valeurTheoInv,cumulValeurEcart=valeurEcartInv;
   DB.inventaires.forEach(inv=>{
     if(inv.totalValeurTheo!=null){
       cumulValeurTheo+=inv.totalValeurTheo;
@@ -1709,27 +1762,76 @@ window.saveInventaire=async function(){
     } else if(inv.pertes){
       Object.entries(inv.pertes).forEach(([name,p])=>{
         const cmp=p.cmp||getCMPMatiere(name,null);
-        if(p.theo>0&&cmp>0){
-          cumulValeurTheo+=p.theo*cmp;
-          if(p.ecart>0) cumulValeurEcart+=p.ecart*cmp;
-        }
+        if(p.theo>0&&cmp>0){cumulValeurTheo+=p.theo*cmp;if(p.ecart>0)cumulValeurEcart+=p.ecart*cmp;}
       });
     }
   });
   const tauxPerteCumuleValeur=cumulValeurTheo>0?(cumulValeurEcart/cumulValeurTheo*100):0;
 
-  const now=new Date();const prevSnapshot=calcPrevisionnel();
-  await updateFirebase({stock:newStock,stockPrev:prevSnapshot,stockPrevDate:now.toISOString(),stockInitDate:DB.stockInitDate||now.toISOString()});
-  await pushToFirebase('inventaires',{
-    date:now.toISOString(),stock:{...newStock},prevSnapshot,pertes,
-    tauxPerteGlobal,                      // % perte CETTE période (monétaire)
-    tauxPerteCumuleValeur,                 // % perte cumulée pondérée (monétaire)
-    totalValeurTheo:valeurTheoInv,         // DH théorique cette période
-    totalValeurEcart:valeurEcartInv        // DH perdu cette période
+  // Mise à jour ciblée : uniquement les articles comptés
+  const updates={stockPrevDate:iso,stockInitDate:DB.stockInitDate||iso};
+  names.forEach(n=>{
+    updates['stock/'+n]=newStock[n];
+    updates['stockPrev/'+n]=prevSnap[n];
+    updates['stockDates/'+n]=iso;
   });
-  await pushToFirebase('historique',{type:'inventaire',date:now.toISOString()});
+  await updateFirebase(updates);
+  await pushToFirebase('inventaires',{
+    date:iso,partiel:true,matieres:names,stock:newStock,prevSnapshot:prevSnap,pertes,
+    tauxPerteGlobal,tauxPerteCumuleValeur,
+    totalValeurTheo:valeurTheoInv,totalValeurEcart:valeurEcartInv
+  });
+  await pushToFirebase('historique',{type:'inventaire',date:iso,matieres:names});
+  return{pertes,tauxPerteGlobal,tauxPerteCumuleValeur};
+}
+
+function showInvRowResult(sid,name,p){
+  const input=document.getElementById('inv-'+sid);if(input)input.value='';
+  const el=document.getElementById('invres-'+sid);if(!el)return;
+  const unit=DB.matieres[name]?.unit||'';
+  const bad=p.ecart>0.0005;
+  el.innerHTML=`<div style="margin-top:6px;padding:5px 8px;border-radius:6px;font-size:11px;display:flex;justify-content:space-between;background:${bad?'var(--danger-light)':'var(--accent-light)'};color:${bad?'var(--danger)':'var(--accent)'};"><span>✓ Enregistré : ${p.reel} ${unit}</span><strong>${bad?'Perte '+p.ecart.toFixed(2)+' ('+p.pertePct.toFixed(1)+'%)':'Aucune perte'}</strong></div>`;
+  const row=document.getElementById('invrow-'+sid);if(row)row.style.borderColor=bad?'var(--danger)':'var(--accent)';
+}
+
+// ✓ sur une ligne : enregistre immédiatement cet article
+window.saveInvItem=async function(sid){
+  const name=invMap[sid];if(!name)return;
+  const input=document.getElementById('inv-'+sid);
+  const val=parseFloat(input?.value);
+  if(isNaN(val)||val<0){toast('❌ Quantité invalide');return;}
+  const res=await enregistrerComptage({[name]:val});
+  if(!res)return;
+  showInvRowResult(sid,name,res.pertes[name]);
+  toast('✅ '+name+' enregistré');
+};
+
+// Bouton du bas : enregistre en une fois toutes les lignes saisies et non encore validées
+window.saveInventaire=async function(){
+  const entries={},sidByName={};
+  Object.entries(invMap).forEach(([sid,name])=>{
+    const v=parseFloat(document.getElementById('inv-'+sid)?.value);
+    if(!isNaN(v)&&v>=0){entries[name]=v;sidByName[name]=sid;}
+  });
+  if(Object.keys(entries).length===0){toast('Aucune quantité saisie');return;}
+  const res=await enregistrerComptage(entries);
+  if(!res)return;
+  Object.keys(entries).forEach(n=>showInvRowResult(sidByName[n],n,res.pertes[n]));
   closeModal('modal-inventaire');
-  toast(`✅ Inventaire validé — Période : ${tauxPerteGlobal.toFixed(1)}% · Cumulé : ${tauxPerteCumuleValeur.toFixed(1)}%`);
+  toast(`✅ ${Object.keys(entries).length} article(s) — Période : ${res.tauxPerteGlobal.toFixed(1)}% · Cumulé : ${res.tauxPerteCumuleValeur.toFixed(1)}%`);
+};
+
+// Comptage rapide depuis la fiche d'un article (écran Stock)
+let mpDetailName=null;
+window.saveComptageDetail=async function(){
+  const name=mpDetailName;if(!name)return;
+  const val=parseFloat(document.getElementById('mp-count-input')?.value);
+  if(isNaN(val)||val<0){toast('❌ Quantité invalide');return;}
+  const res=await enregistrerComptage({[name]:val});
+  if(!res)return;
+  closeModal('modal-mp-detail');
+  const p=res.pertes[name];
+  toast(`✅ ${name} : ${val} ${DB.matieres[name]?.unit||''}${p.ecart>0.0005?' · perte '+p.ecart.toFixed(2):''}`);
 };
 
 // ==================== INGRÉDIENTS MAISON ====================
@@ -1993,7 +2095,7 @@ function renderStock(){
   const prevDyn=calcPrevisionnel();const lastInvNum=DB.inventaires.length;
   const alerts=mps.filter(name=>prevDyn[name]<=0);
   const lastInv=DB.inventaires.length>0?[...DB.inventaires].sort((a,b)=>b.date>a.date?1:-1)[0]:null;
-  const lastInvPertes=lastInv?.pertes||{};
+  const lastInvPertes={};DB.inventaires.forEach(inv=>{Object.entries(inv.pertes||{}).forEach(([n,p])=>{lastInvPertes[n]=p;});});
   const lastInvTauxGlobal=lastInv?.tauxPerteGlobal;
 
   // Catégories disponibles pour filtre
@@ -2175,11 +2277,12 @@ function renderStock(){
     ${achatsHTML}
     <div class="section-title">📋 Historique des inventaires (${lastInvNum})</div>
     ${lastInvNum===0?'<div style="color:var(--text3);font-size:12px;text-align:center;padding:16px;">Aucun inventaire</div>':
-    [...DB.inventaires].sort((a,b)=>b.date>a.date?1:-1).slice(0,5).map(h=>`<div class="card" style="margin-bottom:6px;"><div class="card-body" style="padding:10px 12px;"><div style="display:flex;justify-content:space-between;align-items:center;"><div><div class="list-name">📦 Inventaire</div><div class="list-sub">${new Date(h.date).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div></div><div style="text-align:right;">${h.tauxPerteGlobal!=null?`<span class="badge ${h.tauxPerteGlobal>10?'badge-red':h.tauxPerteGlobal>5?'badge-amber':'badge-green'}">Période ${h.tauxPerteGlobal.toFixed(1)}%</span>${h.tauxPerteCumuleValeur!=null?`<br><span style="font-size:10px;color:var(--text3);">Cumulé ${h.tauxPerteCumuleValeur.toFixed(1)}%</span>`:''}`:'<span class="badge badge-blue">Saisi</span>'}</div></div></div></div>`).join('')}
+    [...DB.inventaires].sort((a,b)=>b.date>a.date?1:-1).slice(0,5).map(h=>`<div class="card" style="margin-bottom:6px;"><div class="card-body" style="padding:10px 12px;"><div style="display:flex;justify-content:space-between;align-items:center;"><div><div class="list-name">📦 Inventaire${h.partiel&&h.matieres?(h.matieres.length===1?' — '+h.matieres[0]:' — '+h.matieres.length+' articles'):''}</div><div class="list-sub">${new Date(h.date).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div></div><div style="text-align:right;">${h.tauxPerteGlobal!=null?`<span class="badge ${h.tauxPerteGlobal>10?'badge-red':h.tauxPerteGlobal>5?'badge-amber':'badge-green'}">Période ${h.tauxPerteGlobal.toFixed(1)}%</span>${h.tauxPerteCumuleValeur!=null?`<br><span style="font-size:10px;color:var(--text3);">Cumulé ${h.tauxPerteCumuleValeur.toFixed(1)}%</span>`:''}`:'<span class="badge badge-blue">Saisi</span>'}</div></div></div></div>`).join('')}
     <div style="height:8px;"></div>`;
 }
 
 window.showMPDetail=function(name){
+  mpDetailName=name;
   const reel=DB.stock[name]||0;const prev=calcPrevisionnel()[name]||0;
   const recettesUsing=DB.recettes.filter(r=>r.ingredients&&r.ingredients.some(i=>i.name.trim()===name));
   const totalVentesMap=DB.ventes.reduce((acc,v)=>{acc[v.recetteId]=(acc[v.recetteId]||0)+v.qty;return acc;},{});
@@ -2196,6 +2299,8 @@ window.showMPDetail=function(name){
       <div class="kpi-card"><div class="kpi-label">CMP ce mois</div><div class="kpi-value" style="font-size:16px;color:var(--purple);">${cmpMois>0?cmpMois.toFixed(2):'—'}</div><div class="kpi-sub">DH / ${DB.matieres[name]?.unit}</div></div>
       <div class="kpi-card"><div class="kpi-label">Consommé total</div><div class="kpi-value" style="color:var(--danger);font-size:16px;">${conso.toFixed(2)}</div><div class="kpi-sub">toutes ventes</div></div>
     </div>
+    <div class="section-title" style="margin-top:4px;">Compter cet article</div>
+    <div style="display:flex;gap:6px;margin-bottom:4px;"><input class="input" id="mp-count-input" type="number" step="0.001" min="0" inputmode="decimal" placeholder="Quantité réelle (${DB.matieres[name]?.unit||''})" onkeydown="if(event.key==='Enter')saveComptageDetail()"><button class="btn btn-sm btn-primary" style="flex-shrink:0;" onclick="saveComptageDetail()">✓ Valider</button></div>
     <div class="section-title">Derniers achats</div>
     ${recentCmdsMP.length===0?'<div style="color:var(--text3);font-size:12px;padding:8px 0;">Aucun achat enregistré</div>':
     recentCmdsMP.map(c=>`<div class="list-item">
@@ -2215,6 +2320,8 @@ const tmpVente={};
 // ==================== POS CAISSE ====================
 let posCart=[]; // [{recetteId,recetteNom,prixUnit,image,supplementId,supplementNom,supplementPrix,toppingId,toppingNom,toppingPrix,qty,cartKey}]
 let posCurrentCat=null;
+let posBonRemises=0; // bons de réduction Nta Chef (−valeur du bon) du panier en cours
+let posBonsCafe=[];  // bons café offert : [{recetteId,nom,prix,qty}] — remise = prix du café
 
 const POS_COLORS=[
   {bg:'var(--accent-light)',border:'var(--accent)',text:'var(--accent)'},
@@ -2228,6 +2335,7 @@ function buildVenteForm(){
   const now=new Date();
   document.getElementById('vente-date-label').textContent=now.toLocaleDateString('fr-FR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
   posCart=[];
+  posBonRemises=0;posBonsCafe=[];
   posCurrentCat=null;
   posRenderCategories();
   posUpdateCartBar();
@@ -2247,7 +2355,13 @@ function posRenderCategories(){
     <div class="pos-cat-name" style="color:#E66B3D;">🍱 Combos</div>
     <div class="pos-cat-count" style="color:#E66B3D;">${combosReg.length} combo${combosReg.length>1?'s':''}</div>
   </div>`:'';
-  document.getElementById('pos-content').innerHTML=`<div class="pos-cat-grid">${comboCard}${
+  const nbBons=posBonRemises+posBonsCafe.reduce((a,b)=>a+b.qty,0);
+  const bonCard=`<div class="pos-cat-card" style="position:relative;background:var(--purple-light);border-color:var(--purple);" onclick="posBonsView()">
+    ${nbBons>0?`<div style="position:absolute;top:6px;right:6px;background:var(--purple);color:#fff;border-radius:50%;width:22px;height:22px;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;">${nbBons}</div>`:''}
+    <div class="pos-cat-name" style="color:var(--purple);">🎟️ Bons Nta Chef</div>
+    <div class="pos-cat-count" style="color:var(--purple);">Café offert · −${bonsCfg().remise} DH</div>
+  </div>`;
+  document.getElementById('pos-content').innerHTML=`<div class="pos-cat-grid">${comboCard}${bonCard}${
     cats.map((cat,i)=>{
       const c=POS_COLORS[i%POS_COLORS.length];
       const count=produitsReg.filter(r=>(r.cat||'Sans catégorie')===cat).length;
@@ -2674,11 +2788,15 @@ function posAddItemToCartMulti(product,supplements,toppings){
   });
 }
 
+function posGrossTotal(){return posCart.reduce((s,i)=>s+i.qty*i.prixUnit,0);}
+function posRemiseTotal(){return posBonRemises*bonsCfg().remise+posBonsCafe.reduce((s,b)=>s+b.qty*b.prix,0);}
+function posNetTotal(){return posGrossTotal()-posRemiseTotal();}
+
 function posUpdateCartBar(){
   const bar=document.getElementById('pos-cart-bar');
   if(!bar)return;
   const totalItems=posCart.reduce((s,i)=>s+i.qty,0);
-  const totalPrice=posCart.reduce((s,i)=>s+i.qty*i.prixUnit,0);
+  const totalPrice=posNetTotal();
   if(totalItems===0){
     bar.innerHTML='<div style="text-align:center;color:var(--text3);font-size:12px;padding:4px 0;">Panier vide — sélectionne un produit</div>';
   } else {
@@ -2693,7 +2811,7 @@ window.posShowCart=function(){
   const backFn=posCurrentCat==='__combos__'?'posSelectCombosView()':posCurrentCat?`posRenderProducts('${posCurrentCat.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')` :'posRenderCategories()';
   document.getElementById('pos-breadcrumb').innerHTML=`<button class="pos-back-btn" onclick="${backFn}">← Continuer mes achats</button><span class="pos-step-label">Mon panier</span>`;
   if(posCart.length===0){document.getElementById('pos-content').innerHTML='<div style="text-align:center;color:var(--text3);padding:30px 0;">Panier vide</div>';return;}
-  const total=posCart.reduce((s,i)=>s+i.qty*i.prixUnit,0);
+  const total=posNetTotal();
   // Grouper les items par comboInstanceId pour affichage visuel
   const rendered=new Set();
   const itemsHtml=posCart.map((item,idx)=>{
@@ -2744,8 +2862,26 @@ window.posShowCart=function(){
       </div>
     </div>`;
   }).join('');
+  const remiseHtml=posBonRemises>0?`<div class="pos-cart-item" style="background:var(--purple-light);border-radius:var(--radius-sm);">
+      <div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:600;color:var(--purple);">🎟️ Bon −${bonsCfg().remise} DH</div>
+      <div style="font-size:12px;color:var(--purple);">−${fmtDH(bonsCfg().remise)} × ${posBonRemises} = <strong>−${fmtDH(posBonRemises*bonsCfg().remise)}</strong></div></div>
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+        <button class="qty-btn qty-btn-minus" onclick="posBonRemiseQty(-1)">−</button>
+        <span style="font-size:14px;font-weight:700;min-width:22px;text-align:center;">${posBonRemises}</span>
+        <button class="qty-btn qty-btn-plus" onclick="posBonRemiseQty(1)">+</button>
+      </div></div>`:'';
+  const cafeBonsHtml=posBonsCafe.map(b=>`<div class="pos-cart-item" style="background:var(--purple-light);border-radius:var(--radius-sm);">
+      <div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:600;color:var(--purple);">☕ Bon café offert — ${b.nom}</div>
+      <div style="font-size:12px;color:var(--purple);">−${fmtDH(b.prix)} × ${b.qty} = <strong>−${fmtDH(b.prix*b.qty)}</strong></div></div>
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+        <button class="qty-btn qty-btn-minus" onclick="posBonCafeQty(${b.recetteId},-1)">−</button>
+        <span style="font-size:14px;font-weight:700;min-width:22px;text-align:center;">${b.qty}</span>
+        <button class="qty-btn qty-btn-plus" onclick="posBonCafeQty(${b.recetteId},1)">+</button>
+      </div></div>`).join('');
   document.getElementById('pos-content').innerHTML=`
     ${itemsHtml}
+    ${cafeBonsHtml}
+    ${remiseHtml}
     <div style="padding-top:12px;display:flex;justify-content:space-between;font-size:15px;font-weight:700;border-top:1px solid var(--border);">
       <span>Total</span><span style="color:var(--accent);">${fmtDH(total)}</span>
     </div>
@@ -2774,6 +2910,77 @@ window.posShowCart=function(){
         </div>
       </div>
     </div>`;
+};
+
+// ── Bons Nta Chef dans la caisse ────────────────────────────────────────────
+// Cafés éligibles aux bons : ceux liés dans Paiements Nta Chef → « Cafés liés aux bons »,
+// sinon (non configuré) les recettes dont le nom ou la catégorie contient « café ».
+function recettesCafe(){
+  const base=DB.recettes.filter(r=>!isRecetteAddon(r)&&!isIngredientMaison(r));
+  const ids=bonsCfg().cafes;
+  const lies=base.filter(r=>ids.includes(r.id));
+  if(lies.length)return{list:lies,lie:true};
+  const noms=base.filter(r=>/caf[eé]/i.test((r.cat||'')+' '+(r.nom||'')));
+  return{list:noms.length?noms:base,lie:false};
+}
+window.posBonsView=function(){
+  document.getElementById('pos-breadcrumb').innerHTML='<button class="pos-back-btn" onclick="posRenderCategories()">← Catégories</button><span class="pos-step-label">🎟️ Bons Nta Chef</span>';
+  const cfg=bonsCfg();const rc=recettesCafe();
+  const cafes=rc.list.map(r=>{
+    const q=posBonsCafe.filter(b=>b.recetteId===r.id).reduce((a,b)=>a+b.qty,0);
+    return`<div class="produit-card" style="position:relative;" onclick="posBonCafeQty(${r.id},1)">
+      ${q>0?`<div style="position:absolute;top:6px;right:6px;background:var(--purple);color:#fff;border-radius:50%;width:22px;height:22px;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;">${q}</div>`:''}
+      ${r.image?`<img src="${r.image}" class="produit-img">`:'<div style="font-size:30px;">☕</div>'}
+      <div class="produit-nom">${r.nom}</div>
+      <div class="produit-prix" style="color:var(--purple);font-weight:600;">${fmtDH(r.prix)} → offert</div>
+      <div style="font-size:9px;color:var(--text3);text-align:center;line-height:1.3;">Déduit : ${ingHint(r)||'aucun ingrédient'}</div></div>`;}).join('');
+  document.getElementById('pos-content').innerHTML=`
+    <div style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;margin:4px 0 8px;">☕ Café offert</div>
+    ${rc.lie?'':'<div class="alert alert-amber">Cafés non liés : le Maître doit les choisir dans Caisse → 🎟️ Bons → Paiements Nta Chef → « Cafés liés aux bons ».</div>'}
+    <div class="produit-grid">${cafes}</div>
+    <div style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;margin:14px 0 8px;">🏷️ Réduction sur le panier</div>
+    <div class="card"><div class="card-body" style="display:flex;align-items:center;justify-content:space-between;">
+      <div><div style="font-size:14px;font-weight:600;">Bon −${fmtDH(cfg.remise)}</div><div style="font-size:11px;color:var(--text3);">Sur n'importe quel produit</div></div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button class="qty-btn qty-btn-minus" onclick="posBonRemiseQty(-1)">−</button>
+        <span style="font-size:18px;font-weight:700;min-width:26px;text-align:center;">${posBonRemises}</span>
+        <button class="qty-btn qty-btn-plus" onclick="posBonRemiseQty(1)">+</button>
+      </div>
+    </div></div>`;
+};
+// Réaffiche l'écran courant après un changement de bon
+function posRerenderBons(){
+  const t=document.getElementById('pos-breadcrumb').textContent;
+  if(t.includes('Mon panier'))posShowCart();
+  else if(t.includes('Bons Nta Chef'))posBonsView();
+  else if(t.includes('Choisir une catégorie'))posRenderCategories();
+}
+// Bon café : ajoute le café au panier (vente normale, le stock baisse) + une remise égale à son prix
+window.posBonCafeQty=function(recetteId,delta){
+  const r=DB.recettes.find(x=>x.id===recetteId);if(!r)return;
+  const bon=posBonsCafe.find(b=>b.recetteId===recetteId);
+  if(delta>0){
+    if(bon)bon.qty++;else posBonsCafe.push({recetteId,nom:r.nom,prix:r.prix,qty:1});
+    posAddItemToCartMulti(r,[],[]);
+    toast('🎟️ '+r.nom+' offert ('+(posBonsCafe.reduce((a,b)=>a+b.qty,0))+')');
+  } else {
+    if(!bon)return;
+    bon.qty--;if(bon.qty<=0)posBonsCafe.splice(posBonsCafe.indexOf(bon),1);
+    const it=posCart.find(i=>i.cartKey===`${r.id}_S_T`);
+    if(it){it.qty--;if(it.qty<=0)posCart.splice(posCart.indexOf(it),1);}
+  }
+  posUpdateCartBar();
+  posRerenderBons();
+};
+
+window.posBonRemiseQty=function(delta){
+  if(delta>0){
+    if(posNetTotal()-bonsCfg().remise<0){toast('❌ La réduction dépasse le total du panier');return;}
+  }
+  posBonRemises=Math.max(0,posBonRemises+delta);
+  posUpdateCartBar();
+  posRerenderBons();
+  if(delta>0)toast('🎟️ Bon Nta Chef −'+fmtDH(bonsCfg().remise)+' ('+posBonRemises+')');
 };
 
 window.posCartQty=function(idx,delta){
@@ -2822,7 +3029,7 @@ window.posUpdateMonnaie=function(){
   if(!input||!resDiv||!insufDiv)return;
   const given=parseFloat(input.value)||0;
   if(given<=0){resDiv.style.display='none';insufDiv.style.display='none';return;}
-  const total=posCart.reduce((s,i)=>s+i.qty*i.prixUnit,0);
+  const total=posNetTotal();
   const change=given-total;
   if(change>=0){
     resDiv.style.display='block';
@@ -2837,6 +3044,7 @@ window.posUpdateMonnaie=function(){
 
 window.saveVente=async function(){
   if(posCart.length===0){toast('Aucune vente saisie');return;}
+  if(posNetTotal()<0){toast('❌ Réduction supérieure au total');return;}
   const now=new Date();let total=0;const entries=[];
   for(const item of posCart){
     const entry={
@@ -2864,8 +3072,18 @@ window.saveVente=async function(){
     total+=item.qty*item.prixUnit;
     await pushToFirebase('ventes',{...entry,date:now.toISOString()});
   }
+  const cfgB=bonsCfg();
+  if(posBonRemises>0){
+    await pushToFirebase('bonsPartenaires',{date:now.toISOString(),partenaire:PARTENAIRE,type:'reduction',qty:posBonRemises,valeurUnit:cfgB.remise,remiseUnit:cfgB.remise});
+    total-=posBonRemises*cfgB.remise;
+  }
+  for(const b of posBonsCafe){
+    // remise en caisse = prix du café ; Nta Chef ne rembourse que la valeur du bon
+    await pushToFirebase('bonsPartenaires',{date:now.toISOString(),partenaire:PARTENAIRE,type:'cafe',recetteId:b.recetteId,recetteNom:b.nom,qty:b.qty,valeurUnit:cfgB.remise,remiseUnit:b.prix});
+    total-=b.qty*b.prix;
+  }
   await pushToFirebase('historique',{type:'vente',date:now.toISOString(),entries,total});
-  posCart=[];
+  posCart=[];posBonRemises=0;posBonsCafe=[];
   closeModal('modal-vente');
   const nbCombos=entries.filter(e=>e.isComboWrapper).length;
   const nbProds=entries.filter(e=>!e.comboId).length;
@@ -3098,6 +3316,13 @@ function _renderHistEntryCard(h,opts){
     ?new Date(h.date).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})
     :new Date(h.date).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
   const isOpen=caisseHistEntryOpen.has(h.date);
+  if(h.partenaire){
+    return `<div class="card" style="margin-bottom:5px;"><div class="card-body" style="padding:8px 12px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div style="flex:1;min-width:0;"><div style="font-size:12px;font-weight:500;">🎟️ ${dateLabel}</div><div style="font-size:11px;color:var(--text3);">${h.label||'Paiement Nta Chef'}</div></div>
+        <span class="badge badge-purple">+${fmtDH(h.total||0)}</span>
+      </div></div></div>`;
+  }
   const summary=_summarizeEntries(h.entries||[]);
   const details=isOpen?`<div style="padding:8px 4px;border-top:0.5px solid var(--border);margin-top:6px;">${_renderEntryDetails(h.entries||[])}</div>`:'';
   return `<div class="card" style="margin-bottom:5px;cursor:pointer;" onclick="toggleHistEntry('${h.date}')">
@@ -3247,7 +3472,7 @@ function renderCaisse(){
   const c=document.getElementById('caisse-content');
   const today=new Date();const todayStr=fmtDate(today);
   const ventesAujourd=getVentesForDate(todayStr);
-  const totalJour=ventesAujourd.reduce((s,v)=>s+v.qty*v.prixUnit,0);
+  const totalJour=ventesAujourd.reduce((s,v)=>s+v.qty*v.prixUnit,0)-remisesBonsJour(todayStr)+encaissementsPartJour(todayStr);
   const totalUnitsJour=ventesAujourd.filter(v=>!v.isComboComponent).reduce((s,v)=>s+v.qty,0);
   const totalVentes=DB.ventes.reduce((acc,v)=>{acc[v.recetteId]=(acc[v.recetteId]||0)+v.qty;return acc;},{});
   const datesWithVentes=getDatesWithVentes();
@@ -3259,7 +3484,7 @@ function renderCaisse(){
   for(let i=1;i<=lastDay.getDate();i++){days.push({d:new Date(calYear,calMonth,i),other:false});}
   const rem=(7-days.length%7)%7;for(let i=1;i<=rem;i++){days.push({d:new Date(calYear,calMonth+1,i),other:true});}
   const selStr=calSelectedDate||todayStr;
-  const ventesSel=getVentesForDate(selStr);const totalSel=ventesSel.reduce((s,v)=>s+v.qty*v.prixUnit,0);
+  const ventesSel=getVentesForDate(selStr);const totalSel=ventesSel.reduce((s,v)=>s+v.qty*v.prixUnit,0)-remisesBonsJour(selStr)+encaissementsPartJour(selStr);
   const byProdSel={};ventesSel.filter(v=>!v.isComboWrapper&&!v.isComboComponent).forEach(v=>{byProdSel[v.recetteNom]=(byProdSel[v.recetteNom]||0)+v.qty;});
   const histAll=[...DB.historique].filter(h=>h.type==='vente').reverse();
   c.innerHTML=`
@@ -3381,7 +3606,7 @@ window._updateFermetureTotaux = function _updateFermetureTotaux() {
     document.getElementById('fermeture-achats-total-val').textContent = fmtDH(totalAchats);
     const fondInitial = _getFondInitial();
     const ventesJour = getVentesForDate(fmtDate(new Date()));
-    const totalVentes = ventesJour.reduce((s, v) => s + v.qty * v.prixUnit, 0);
+    const totalVentes = ventesJour.reduce((s, v) => s + v.qty * v.prixUnit, 0) - remisesBonsJour(fmtDate(new Date())) + encaissementsPartJour(fmtDate(new Date()));
     const ajuste = fondInitial + totalVentes - totalAchats;
     const ajusteBox = document.getElementById('fermeture-ajuste-box');
     ajusteBox.style.display = 'block';
@@ -3443,7 +3668,7 @@ window.openModal_fermeture_setup = function() {
   const now = new Date();
   const todayStr = fmtDate(now);
   const ventesJour = getVentesForDate(todayStr);
-  const totalVentes = ventesJour.reduce((s, v) => s + v.qty * v.prixUnit, 0);
+  const totalVentes = ventesJour.reduce((s, v) => s + v.qty * v.prixUnit, 0) - remisesBonsJour(fmtDate(new Date())) + encaissementsPartJour(fmtDate(new Date()));
   const nbArticles = ventesJour.reduce((s, v) => s + v.qty, 0);
   const fondInitial = _getFondInitial();
   const totalTheorique = fondInitial + totalVentes;
@@ -3479,7 +3704,7 @@ window.openModal_fermeture_setup = function() {
 window.updateFermetureEcart = function() {
   const fondInitial = _getFondInitial();
   const ventesJour = getVentesForDate(fmtDate(new Date()));
-  const totalVentes = ventesJour.reduce((s, v) => s + v.qty * v.prixUnit, 0);
+  const totalVentes = ventesJour.reduce((s, v) => s + v.qty * v.prixUnit, 0) - remisesBonsJour(fmtDate(new Date())) + encaissementsPartJour(fmtDate(new Date()));
   const totalTheorique = fondInitial + totalVentes;
   const totalAchats = fermetureAchats.reduce((s, a) => s + (parseFloat(a.montant) || 0), 0);
   const theoriqueAjuste = totalTheorique - totalAchats;
@@ -3535,7 +3760,7 @@ window.saveFermeture = async function() {
   const now = new Date();
   const todayStr = fmtDate(now);
   const ventesJour = getVentesForDate(todayStr);
-  const totalVentes = ventesJour.reduce((s, v) => s + v.qty * v.prixUnit, 0);
+  const totalVentes = ventesJour.reduce((s, v) => s + v.qty * v.prixUnit, 0) - remisesBonsJour(fmtDate(new Date())) + encaissementsPartJour(fmtDate(new Date()));
   const fondInitial = _getFondInitial();
   const totalTheorique = fondInitial + totalVentes;
   const achatsValides = fermetureAchats.filter(a => parseFloat(a.montant) > 0);
@@ -3560,6 +3785,141 @@ window.saveFermeture = async function() {
   closeModal('modal-fermeture');
   const sign = ecart >= 0 ? '+' : '';
   toast(`🔒 Fermeture enregistrée — Écart : ${sign}${fmtDH(ecart)}`);
+};
+
+// ==================== BONS PARTENAIRE (Nta Chef) ====================
+// Un bon = une réduction fixe (5 DH par défaut) appliquée au panier en caisse. Nta Chef rembourse
+// cette même valeur par bon. La vente est saisie au prix plein : la remise est retirée du montant attendu
+// en caisse (aucun écart), et le chiffre d'affaires lié aux bons n'est compté qu'au paiement de Nta Chef.
+const PARTENAIRE='Nta Chef';
+const bonsState={};
+
+function bonsCfg(){
+  const c=DB.bonsConfig||{};
+  return{remise:c.remise!=null&&Number(c.remise)>0?Number(c.remise):5,
+         cafes:c.cafes?Object.values(c.cafes).map(Number):[]};   // ids des recettes liées aux bons « café offert »
+}
+function ingHint(r){return (r.ingredients||[]).map(i=>`${i.name} ${i.qty}${i.unit||''}`).join(' · ');}
+function bonsDateStr(b){return fmtDate(new Date(b.date));}
+// Paiements Nta Chef reçus dans le tiroir-caisse (espèces) un jour donné
+function encaissementsPartJour(ds){return DB.paiementsPart.filter(p=>p.enCaisse&&bonsDateStr(p)===ds).reduce((s,p)=>s+(p.montant||0),0);}
+function remisesBonsJour(ds){return DB.bons.filter(b=>bonsDateStr(b)===ds).reduce((s,b)=>s+b.qty*(b.remiseUnit||0),0);}
+// Ajustement du CA sur [d1,d2] : + paiements encaissés − remises accordées en caisse
+function ajustBonsPeriode(d1,d2){
+  let t=0;
+  DB.paiementsPart.forEach(p=>{const d=bonsDateStr(p);if(d>=d1&&d<=d2)t+=p.montant||0;});
+  DB.bons.forEach(b=>{const d=bonsDateStr(b);if(d>=d1&&d<=d2)t-=b.qty*(b.remiseUnit||0);});
+  return t;
+}
+function addBonsAjust(map,len){
+  DB.paiementsPart.forEach(p=>{const k=bonsDateStr(p).slice(0,len);map[k]=(map[k]||0)+(p.montant||0);});
+  DB.bons.forEach(b=>{const k=bonsDateStr(b).slice(0,len);map[k]=(map[k]||0)-b.qty*(b.remiseUnit||0);});
+}
+function bonsSolde(){
+  const val=bonsCfg().remise;
+  const utilises=DB.bons.reduce((s,b)=>s+b.qty,0);
+  const du=DB.bons.reduce((s,b)=>s+b.qty*(b.valeurUnit||val),0);
+  const paye=DB.paiementsPart.reduce((s,p)=>s+(p.montant||0),0);
+  const payes=DB.paiementsPart.reduce((s,p)=>s+(p.nbBons!=null?p.nbBons:Math.round((p.montant||0)/val)),0);
+  return{utilises,payes,restants:utilises-payes,du,paye,reste:du-paye};
+}
+function bonsIsoFromDate(ds){return ds===fmtDate(new Date())?new Date().toISOString():new Date(ds+'T12:00:00').toISOString();}
+
+window.bpPreview=function(){
+  const n=parseInt(document.getElementById('bp-nb')?.value)||0;
+  const el=document.getElementById('bp-total');if(el)el.textContent=fmtDH(n*bonsCfg().remise);
+};
+
+function bonLibelle(b){return b.type==='cafe'?`☕ ${b.recetteNom||'Café offert'}`:'🏷️ Réduction';}
+
+function renderBons(){
+  const el=document.getElementById('bons-content');if(!el)return;
+  const isMaitre=userRole==='maitre';
+  const cfg=bonsCfg();const sol=bonsSolde();
+  const keep={n:document.getElementById('bp-nb')?.value,c:document.getElementById('bp-caisse')?.checked,
+              cf:[...document.querySelectorAll('.bc-cafe')].map(x=>[x.value,x.checked])};
+  const defNb=Math.max(0,sol.restants);
+  const paiements=[...DB.paiementsPart].reverse().slice(0,15);
+  const bonsRecents=[...DB.bons].reverse().slice(0,15);
+  let html=`
+    <div class="kpi-grid">
+      <div class="kpi-card"><div class="kpi-label">Bons utilisés</div><div class="kpi-value">${sol.utilises}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Bons payés</div><div class="kpi-value" style="color:var(--accent);">${sol.payes}</div></div>
+    </div>
+    <div style="background:${sol.restants>0?'var(--amber-light)':'var(--accent-light)'};border-radius:8px;padding:10px 12px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-size:13px;font-weight:600;color:${sol.restants>0?'var(--amber)':'var(--accent)'};">${sol.restants} bon${Math.abs(sol.restants)>1?'s':''} à recevoir de ${PARTENAIRE}</span>
+      <span style="font-size:18px;font-weight:700;color:${sol.restants>0?'var(--amber)':'var(--accent)'};">${fmtDH(sol.restants*cfg.remise)}</span>
+    </div>`;
+  if(isMaitre){
+    html+=`
+    <div class="section-title" style="margin-top:0;">Paiement reçu de ${PARTENAIRE}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px;">
+      <div><div class="label">Nombre de bons payés</div><input class="input" id="bp-nb" type="number" step="1" min="1" inputmode="numeric" value="${defNb||''}" oninput="bpPreview()"></div>
+      <div><div class="label">Date</div><input class="input" id="bp-date" type="date" value="${fmtDate(new Date())}"></div>
+    </div>
+    <div style="background:var(--surface2);border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:12px;display:flex;justify-content:space-between;"><span>Montant reçu (× ${fmtDH(cfg.remise)})</span><strong id="bp-total">${fmtDH(defNb*cfg.remise)}</strong></div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text2);margin-bottom:8px;cursor:pointer;"><input type="checkbox" id="bp-caisse" checked> Encaissé en espèces dans la caisse (ajouté à la saisie de caisse du jour)</label>
+    <button class="btn btn-primary" onclick="savePaiementPart()">Enregistrer le paiement</button>`;
+  }
+  html+=`
+    <div class="section-title">Derniers paiements</div>
+    ${paiements.length===0?'<div style="color:var(--text3);font-size:12px;text-align:center;padding:8px;">Aucun paiement</div>':paiements.map(p=>`<div class="list-item"><div><div class="list-name">${p.nbBons!=null?p.nbBons+' bon'+(p.nbBons>1?'s':'')+' · ':''}${fmtDH(p.montant)}</div><div class="list-sub">${new Date(p.date).toLocaleDateString('fr-FR')} · ${p.enCaisse?'en caisse':'hors caisse'}</div></div>${isMaitre?`<button onclick="deletePaiementPart('${p._key}')" style="background:none;border:none;font-size:16px;color:var(--text3);cursor:pointer;">×</button>`:''}</div>`).join('')}
+    <div class="section-title">Derniers bons utilisés</div>
+    ${bonsRecents.length===0?'<div style="color:var(--text3);font-size:12px;text-align:center;padding:8px;">Aucun bon</div>':bonsRecents.map(b=>`<div class="list-item"><div><div class="list-name">${bonLibelle(b)} <span style="color:var(--text3);font-weight:400;">×${b.qty}</span></div><div class="list-sub">${new Date(b.date).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})} · −${fmtDH(b.qty*(b.remiseUnit||0))} en caisse</div></div>${isMaitre?`<button onclick="deleteBon('${b._key}')" style="background:none;border:none;font-size:16px;color:var(--text3);cursor:pointer;">×</button>`:''}</div>`).join('')}`;
+  if(isMaitre){
+    html+=`
+    <div class="section-title">Réglages des bons</div>
+    <div class="label">Valeur d'un bon (DH) — remboursée par ${PARTENAIRE}</div>
+    <input class="input" id="bc-remise" type="number" step="0.01" min="0" inputmode="decimal" value="${cfg.remise}" style="margin-bottom:10px;">
+    <div class="label">Cafés liés aux bons « café offert »</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:6px;">Le stock est déduit selon la recette de chaque café coché.</div>
+    ${DB.recettes.filter(r=>!isRecetteAddon(r)&&!isIngredientMaison(r)).sort((a,b)=>a.nom>b.nom?1:-1).map(r=>`
+      <label style="display:flex;align-items:flex-start;gap:8px;padding:8px 10px;margin-bottom:6px;background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;">
+        <input type="checkbox" class="bc-cafe" value="${r.id}" ${cfg.cafes.includes(r.id)?'checked':''} style="margin-top:3px;">
+        <span><span style="font-size:13px;font-weight:500;">${r.nom}</span> <span style="font-size:11px;color:var(--text3);">${fmtDH(r.prix)}</span><br><span style="font-size:10px;color:var(--text3);">Déduit : ${ingHint(r)||'aucun ingrédient'}</span></span>
+      </label>`).join('')}
+    <button class="btn btn-secondary" onclick="saveBonsConfig()">Enregistrer les réglages</button>`;
+  }
+  el.innerHTML=html;
+  const nb=document.getElementById('bp-nb');if(nb&&keep.n!=null&&keep.n!=='')nb.value=keep.n;
+  const cb=document.getElementById('bp-caisse');if(cb&&keep.c!=null)cb.checked=keep.c;
+  keep.cf.forEach(([v,ch])=>{const x=document.querySelector('.bc-cafe[value="'+v+'"]');if(x)x.checked=ch;});
+  bpPreview();
+}
+
+window.deleteBon=async function(key){
+  if(!confirm('Supprimer ce bon ?'))return;
+  await remove(ref(db,'stockapp/bonsPartenaires/'+key));
+  toast('🗑️ Bon supprimé');
+};
+window.savePaiementPart=async function(){
+  if(userRole!=='maitre'){toast('⛔ Réservé au compte Maître');return;}
+  const nb=parseInt(document.getElementById('bp-nb').value)||0;
+  const ds=document.getElementById('bp-date').value||fmtDate(new Date());
+  const enCaisse=document.getElementById('bp-caisse').checked;
+  if(nb<1){toast('❌ Nombre de bons invalide');return;}
+  const montant=nb*bonsCfg().remise;
+  const iso=bonsIsoFromDate(ds);
+  const pr=await push(ref(db,'stockapp/paiementsPartenaires'),{date:iso,partenaire:PARTENAIRE,nbBons:nb,montant,enCaisse});
+  // Saisie de caisse : apparaît dans l'historique caisse et dans le montant attendu à la fermeture
+  if(enCaisse)await pushToFirebase('historique',{type:'vente',partenaire:true,label:`Paiement ${PARTENAIRE} — ${nb} bon${nb>1?'s':''}`,date:iso,total:montant,entries:[],paiementKey:pr.key});
+  toast(`✅ ${nb} bon${nb>1?'s':''} payé${nb>1?'s':''} — ${fmtDH(montant)}${enCaisse?' ajouté à la caisse':''}`);
+};
+window.deletePaiementPart=async function(key){
+  if(userRole!=='maitre'){toast('⛔ Réservé au compte Maître');return;}
+  if(!confirm('Supprimer ce paiement ?'))return;
+  const snap=await get(ref(db,'stockapp/historique'));
+  if(snap.exists()){const all=snap.val();for(const k of Object.keys(all)){if(all[k].paiementKey===key)await remove(ref(db,'stockapp/historique/'+k));}}
+  await remove(ref(db,'stockapp/paiementsPartenaires/'+key));
+  toast('🗑️ Paiement supprimé');
+};
+window.saveBonsConfig=async function(){
+  if(userRole!=='maitre'){toast('⛔ Réservé au compte Maître');return;}
+  const remise=parseFloat(document.getElementById('bc-remise').value);
+  if(isNaN(remise)||remise<=0){toast('❌ Valeur invalide');return;}
+  const cafes=[...document.querySelectorAll('.bc-cafe:checked')].map(c=>Number(c.value));
+  await updateFirebase({bonsConfig:{remise,cafes:cafes.length?cafes:null}});
+  toast('✅ Réglages des bons enregistrés');
 };
 
 // ==================== FINANCE (Maître) ====================
@@ -3706,6 +4066,7 @@ function calcMargeNetteCumulee(dateLancement){
       if(r) coutMat += calcCoutMatiere(r,false,mk2) * v.qty;
     }
   });
+  ca += ajustBonsPeriode(d1,d2);
   var taux = getTauxPerteActif();
   var coutMatAvecPerte = coutMat * (1 + taux);
   var margeBrute = ca - coutMat;
@@ -3749,6 +4110,7 @@ function calcProjectionAmortissement(resteAAmortir, dateLancement){
       var d=fmtDate(new Date(v.date));
       if(d>=d1&&d<=d2){ ca2+=v.qty*v.prixUnit; var r=DB.recettes.find(function(x){return x.id===v.recetteId;}); var mk2=monthKey(new Date(v.date)); if(r)cout2+=calcCoutMatiere(r,false,mk2)*v.qty; }
     });
+    ca2 += ajustBonsPeriode(d1,d2);
     var mb=ca2-cout2;
     var cf=getChargesFixesTotales();
     var cv=calcChargesVarPeriode(deb,fin2);
@@ -3764,7 +4126,7 @@ function calcProjectionAmortissement(resteAAmortir, dateLancement){
 function calcPeriode(dateDebut, dateFin){
   var d1=fmtDate(dateDebut); var d2=fmtDate(dateFin);
   var ventesP=DB.ventes.filter(function(v){ var d=fmtDate(new Date(v.date)); return d>=d1&&d<=d2; });
-  var ca=ventesP.reduce(function(s,v){return s+v.qty*v.prixUnit;},0);
+  var ca=ventesP.reduce(function(s,v){return s+v.qty*v.prixUnit;},0)+ajustBonsPeriode(d1,d2);
   var units=ventesP.reduce(function(s,v){return s+v.qty;},0);
   var coutMat=0; var coutMatAvecPerte=0;
   ventesP.forEach(function(v){
@@ -4164,7 +4526,7 @@ window.saveSeuilCommande=async function(name){
 };
 
 // ==================== KPI ====================
-function getCAParMois(){const map={};DB.ventes.forEach(v=>{const mk=monthKey(new Date(v.date));map[mk]=(map[mk]||0)+v.qty*v.prixUnit;});return map;}
+function getCAParMois(){const map={};DB.ventes.forEach(v=>{const mk=monthKey(new Date(v.date));map[mk]=(map[mk]||0)+v.qty*v.prixUnit;});addBonsAjust(map,7);return map;}
 // Ne compte PAS les composants de combo en unités (le wrapper compte pour 1 = 1 combo)
 function getUnitsParMois(){const map={};DB.ventes.forEach(v=>{if(v.isComboComponent)return;const mk=monthKey(new Date(v.date));map[mk]=(map[mk]||0)+v.qty;});return map;}
 let kpiView='total',kpiCalYear=new Date().getFullYear(),kpiCalMonth=new Date().getMonth(),chartPeriod=6,caChart=null;
@@ -4174,7 +4536,7 @@ let produitMenuView='split'; // 'split' = détaillé hors/en menu | 'total' = cu
 // Vue "Par jour" — sélection de date via calendrier
 let kpiDailySelectedDate=null,kpiDailyCalMonth=new Date().getMonth(),kpiDailyCalYear=new Date().getFullYear();
 
-function getCAParJour(){const map={};DB.ventes.forEach(v=>{const ds=fmtDate(new Date(v.date));map[ds]=(map[ds]||0)+v.qty*v.prixUnit;});return map;}
+function getCAParJour(){const map={};DB.ventes.forEach(v=>{const ds=fmtDate(new Date(v.date));map[ds]=(map[ds]||0)+v.qty*v.prixUnit;});addBonsAjust(map,10);return map;}
 function getCombosVentesStats(ventesArr){
   // Compte 1 vente par instance (basée sur le wrapper) et somme le CA (wrapper + suppléments composants)
   // Agrège aussi le détail des composants par slot et par produit
@@ -4302,7 +4664,7 @@ function renderKPI(){
   const hasCurve=moisAvecData.length>=3;
 
   // ---- Données globales (vue Total) ----
-  const totalCA=DB.ventes.reduce((s,v)=>s+v.qty*v.prixUnit,0);
+  const totalCA=DB.ventes.reduce((s,v)=>s+v.qty*v.prixUnit,0)+ajustBonsPeriode('0000-01-01','9999-12-31');
   const totalUnits=DB.ventes.filter(v=>!v.isComboComponent).reduce((s,v)=>s+v.qty,0);
   const jours=new Set(DB.ventes.map(v=>fmtDate(new Date(v.date)))).size;
   const nbInv=DB.inventaires.length;
@@ -4338,7 +4700,7 @@ function renderKPI(){
   const totalCharges=totalChargesFixes+totalChargesVar;
   const margeNette=totalCA-totalCoutMat-totalCharges;
   const margeNetteAvecPerte=totalCA-totalCoutMatAvecPerte-totalCharges;
-  const ecarts=hasSnapshot?mps.map(name=>({name,prevVal:DB.stockPrev[name]||0,reelVal:DB.stock[name]||0,ecart:(DB.stock[name]||0)-(DB.stockPrev[name]||0),unit:DB.matieres[name]?.unit})):[];
+  const ecarts=hasSnapshot?mps.filter(name=>DB.stockPrev[name]!==undefined).map(name=>({name,prevVal:DB.stockPrev[name]||0,reelVal:DB.stock[name]||0,ecart:(DB.stock[name]||0)-(DB.stockPrev[name]||0),unit:DB.matieres[name]?.unit})):[];
   // Dernier taux de perte calculé depuis inventaire
   const lastInvPerte=lastInv?.tauxPerteGlobal;
 
@@ -4494,7 +4856,7 @@ function renderKPI(){
   for(let i=1;i<=lastDayD.getDate();i++){daysD.push({d:new Date(kpiDailyCalYear,kpiDailyCalMonth,i),other:false});}
   const remD=(7-daysD.length%7)%7;for(let i=1;i<=remD;i++){daysD.push({d:new Date(kpiDailyCalYear,kpiDailyCalMonth+1,i),other:true});}
   const ventesJour=DB.ventes.filter(v=>fmtDate(new Date(v.date))===selDayStr);
-  const caJour=ventesJour.reduce((s,v)=>s+v.qty*v.prixUnit,0);
+  const caJour=ventesJour.reduce((s,v)=>s+v.qty*v.prixUnit,0)+ajustBonsPeriode(selDayStr,selDayStr);
   const unitsJour=ventesJour.filter(v=>!v.isComboComponent).reduce((s,v)=>s+v.qty,0);
   const byProdJour={};ventesJour.filter(v=>!v.isComboWrapper&&!v.isComboComponent).forEach(v=>{byProdJour[v.recetteNom]=(byProdJour[v.recetteNom]||0)+v.qty;});
   const margeJour=calcMargeJour(selDayStr);
@@ -4846,7 +5208,7 @@ window.confirmReset=async function(){
   if(!confirm('Réinitialiser le stock, les ventes, les inventaires et les achats ?\nUne sauvegarde automatique sera créée avant la réinitialisation.'))return;
   await creerSauvegarde('Avant réinitialisation');
   await pushToFirebase('historique',{type:'reset',date:new Date().toISOString()});
-  await updateFirebase({stock:null,stockPrev:null,stockPrevDate:null,stockInitDate:null,inventaires:null,ventes:null,commandes:null,historique:null});
+  await updateFirebase({stock:null,stockPrev:null,stockPrevDate:null,stockInitDate:null,stockDates:null,inventaires:null,ventes:null,commandes:null,historique:null});
   toast('🔄 Tout réinitialisé — sauvegarde créée');
 };
 
@@ -4858,6 +5220,7 @@ async function creerSauvegarde(label){
     stockPrev:{...DB.stockPrev},
     stockPrevDate:DB.stockPrevDate,
     stockInitDate:DB.stockInitDate,
+    stockDates:{...DB.stockDates},
     inventaires:[...DB.inventaires],
     ventes:[...DB.ventes],
     totalCA:DB.ventes.reduce((s,v)=>s+v.qty*(v.prixUnit||0),0),
@@ -4894,6 +5257,7 @@ window.restaurerSauvegarde=async function(idx){
     stockPrev:sv.stockPrev||null,
     stockPrevDate:sv.stockPrevDate||null,
     stockInitDate:sv.stockInitDate||null,
+    stockDates:sv.stockDates||null,
     inventaires:sv.inventaires&&sv.inventaires.length?sv.inventaires.reduce((o,v,i)=>{o[i]=v;return o;},{}):null,
     ventes:sv.ventes&&sv.ventes.length?sv.ventes.reduce((o,v,i)=>{o[i]=v;return o;},{}):null,
   };
