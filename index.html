@@ -400,6 +400,17 @@ body{font-family:-apple-system,'SF Pro Text','Helvetica Neue',sans-serif;backgro
     </div>
     <datalist id="fournisseurs-suggestions"></datalist>
 
+    <!-- Paiements par carte (TPE) -->
+    <div style="margin-bottom:14px;">
+      <div class="label">💳 Paiements par carte (TPE) — total du jour</div>
+      <div style="position:relative;">
+        <input class="input" id="fermeture-tpe" type="number" placeholder="0.00" step="0.01" min="0" inputmode="decimal"
+               style="padding-right:36px;" oninput="_updateFermetureTotaux();updateFermetureEcart()">
+        <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--text3);font-weight:600;">DH</span>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:3px;">Reprenez le total de la journée sur le ticket du TPE. Ce montant n'est pas dans le tiroir : il est retiré du théorique.</div>
+    </div>
+
     <!-- Montant compté physiquement -->
     <div class="label">💵 Montant compté en caisse (DH)</div>
     <div style="position:relative;margin-bottom:12px;">
@@ -3442,7 +3453,8 @@ function _buildFermeturesSection() {
       const achatsLine = f.achats && f.achats.length > 0
         ? `<div style="font-size:11px;color:var(--danger);margin-top:2px;">🛒 Achats : ${f.achats.map(a=>`${a.fournisseur||'?'} (${fmtDH(a.montant||0)})`).join(', ')} = −${fmtDH(f.totalAchats||0)}</div>`
         : '';
-      const ajusteLine = f.achats && f.achats.length > 0
+      const tpeLine = f.tpe > 0 ? `<div style="font-size:11px;color:var(--blue);margin-top:2px;">💳 TPE : −${fmtDH(f.tpe)}</div>` : '';
+      const ajusteLine = (f.achats && f.achats.length > 0) || f.tpe > 0
         ? `<div style="font-size:11px;color:var(--text2);margin-top:1px;">→ Ajusté : ${fmtDH(f.theoriqueAjuste||0)}</div>`
         : '';
       const noteLine = f.note ? `<div style="font-size:11px;color:var(--text3);margin-top:5px;font-style:italic;">📝 ${f.note}</div>` : '';
@@ -3452,7 +3464,7 @@ function _buildFermeturesSection() {
           <span class="badge badge-green">${fmtDH(f.montantCompte||0)}</span>
         </div>
         <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:6px 10px;margin-bottom:4px;">
-          ${fondLine}${achatsLine}${ajusteLine}
+          ${fondLine}${achatsLine}${tpeLine}${ajusteLine}
           <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
             <span style="font-size:11px;color:var(--text3);">Compté <strong>${fmtDH(f.montantCompte||0)}</strong></span>
             <span style="font-size:13px;font-weight:700;color:${ecartColor};">${ecartIcon} ${sign}${fmtDH(ecart)}</span>
@@ -3475,6 +3487,7 @@ function _buildFermetureJour(selStr) {
     const fondLine = f.fondInitial != null
       ? `Fond ${fmtDH(f.fondInitial)} + Ventes ${fmtDH(f.totalVentes||0)} = ${fmtDH(f.totalTheorique||0)}`
       : `Théorique ${fmtDH(f.totalTheorique||0)}`;
+    const tpeHtml = f.tpe > 0 ? `<div style="font-size:11px;color:var(--blue);margin-top:2px;">💳 TPE −${fmtDH(f.tpe)}${!(f.achats && f.achats.length > 0) ? ' → Ajusté '+fmtDH(f.theoriqueAjuste||0) : ''}</div>` : '';
     const achatsHtml = f.achats && f.achats.length > 0
       ? `<div style="font-size:11px;color:var(--danger);margin-top:2px;">🛒 ${f.achats.map(a=>`${a.fournisseur||'?'} −${fmtDH(a.montant||0)}`).join(' · ')} → Ajusté ${fmtDH(f.theoriqueAjuste||0)}</div>`
       : '';
@@ -3484,7 +3497,7 @@ function _buildFermetureJour(selStr) {
         <div style="flex:1;">
           <div style="font-size:12px;font-weight:600;">🔒 Fermeture · ${new Date(f.date).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</div>
           <div style="font-size:11px;color:var(--text3);margin-top:2px;">${fondLine}</div>
-          ${achatsHtml}
+          ${achatsHtml}${tpeHtml}
           <div style="font-size:11px;color:var(--text3);margin-top:1px;">Compté ${fmtDH(f.montantCompte||0)}</div>
           ${noteLine}
         </div>
@@ -3623,23 +3636,28 @@ function _getFournisseursSuggestions() {
 }
 
 // Met à jour uniquement les totaux (sans reconstruire les inputs — évite la perte de focus)
+function fermetureTpeVal(){return Math.max(0,parseFloat(document.getElementById('fermeture-tpe')?.value)||0);}
 window._updateFermetureTotaux = function _updateFermetureTotaux() {
   const totalAchats = fermetureAchats.reduce((s, a) => s + (parseFloat(a.montant) || 0), 0);
+  const tpe = fermetureTpeVal();
   const totEl = document.getElementById('fermeture-achats-total');
   if (!totEl) return;
+  const ajusteBox = document.getElementById('fermeture-ajuste-box');
   if (totalAchats > 0) {
     totEl.style.display = 'block';
     document.getElementById('fermeture-achats-total-val').textContent = fmtDH(totalAchats);
+  } else {
+    totEl.style.display = 'none';
+  }
+  if (totalAchats > 0 || tpe > 0) {
     const fondInitial = _getFondInitial();
     const ventesJour = getVentesForDate(fmtDate(new Date()));
     const totalVentes = ventesJour.reduce((s, v) => s + v.qty * v.prixUnit, 0) - remisesBonsJour(fmtDate(new Date())) + encaissementsPartJour(fmtDate(new Date()));
-    const ajuste = fondInitial + totalVentes - totalAchats;
-    const ajusteBox = document.getElementById('fermeture-ajuste-box');
+    const ajuste = fondInitial + totalVentes - totalAchats - tpe;
     ajusteBox.style.display = 'block';
     document.getElementById('fermeture-ajuste-val').textContent = fmtDH(ajuste);
   } else {
-    totEl.style.display = 'none';
-    document.getElementById('fermeture-ajuste-box').style.display = 'none';
+    ajusteBox.style.display = 'none';
   }
 }
 
@@ -3654,8 +3672,7 @@ window.renderFermetureAchats = function() {
 
   if (fermetureAchats.length === 0) {
     list.innerHTML = '';
-    document.getElementById('fermeture-achats-total').style.display = 'none';
-    document.getElementById('fermeture-ajuste-box').style.display = 'none';
+    _updateFermetureTotaux();
     updateFermetureEcart();
     return;
   }
@@ -3715,6 +3732,7 @@ window.openModal_fermeture_setup = function() {
   renderFermetureAchats();
 
   document.getElementById('fermeture-montant').value = '';
+  document.getElementById('fermeture-tpe').value = '';
   document.getElementById('fermeture-note').value = '';
 
   // Reset écart
@@ -3733,7 +3751,7 @@ window.updateFermetureEcart = function() {
   const totalVentes = ventesJour.reduce((s, v) => s + v.qty * v.prixUnit, 0) - remisesBonsJour(fmtDate(new Date())) + encaissementsPartJour(fmtDate(new Date()));
   const totalTheorique = fondInitial + totalVentes;
   const totalAchats = fermetureAchats.reduce((s, a) => s + (parseFloat(a.montant) || 0), 0);
-  const theoriqueAjuste = totalTheorique - totalAchats;
+  const theoriqueAjuste = totalTheorique - totalAchats - fermetureTpeVal();
 
   const montantVal = document.getElementById('fermeture-montant').value;
   const box = document.getElementById('fermeture-ecart-box');
@@ -3745,7 +3763,7 @@ window.updateFermetureEcart = function() {
     box.style.background = '';
     ecartEl.textContent = '—';
     ecartEl.style.color = 'var(--text2)';
-    hintEl.textContent = totalAchats > 0
+    hintEl.textContent = (totalAchats > 0 || fermetureTpeVal() > 0)
       ? `Théorique ajusté : ${fmtDH(theoriqueAjuste)} — Saisissez le montant compté`
       : 'Saisissez le montant compté pour calculer l\'écart';
     return;
@@ -3791,7 +3809,7 @@ window.saveFermeture = async function() {
   const totalTheorique = fondInitial + totalVentes;
   const achatsValides = fermetureAchats.filter(a => parseFloat(a.montant) > 0);
   const totalAchats = achatsValides.reduce((s, a) => s + (parseFloat(a.montant) || 0), 0);
-  const theoriqueAjuste = totalTheorique - totalAchats;
+  const theoriqueAjuste = totalTheorique - totalAchats - fermetureTpeVal();
   const ecart = montant - theoriqueAjuste;
 
   await pushToFirebase('fermetures', {
@@ -3801,6 +3819,7 @@ window.saveFermeture = async function() {
     totalTheorique,
     achats: achatsValides.map(a => ({ fournisseur: a.fournisseur || '', montant: parseFloat(a.montant) || 0 })),
     totalAchats,
+    tpe: fermetureTpeVal(),
     theoriqueAjuste,
     montantCompte: montant,
     ecart,
