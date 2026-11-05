@@ -408,7 +408,7 @@ body{font-family:-apple-system,'SF Pro Text','Helvetica Neue',sans-serif;backgro
                style="padding-right:36px;" oninput="_updateFermetureTotaux();updateFermetureEcart()">
         <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--text3);font-weight:600;">DH</span>
       </div>
-      <div style="font-size:11px;color:var(--text3);margin-top:3px;">Reprenez le total de la journée sur le ticket du TPE. Ce montant n'est pas dans le tiroir : il est retiré du théorique.</div>
+      <div id="fermeture-tpe-hint" style="font-size:11px;color:var(--text3);margin-top:3px;">Reprenez le total de la journée sur le ticket du TPE. Ce montant n'est pas dans le tiroir : il est retiré du théorique.</div>
     </div>
 
     <!-- Montant compté physiquement -->
@@ -813,7 +813,7 @@ const MOIS_SHORT=['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Aoû','Sep','Oct
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400);}
 
 // ==================== STATE ====================
-let DB={recettes:[],combos:[],matieres:{},stock:{},stockPrev:{},stockPrevDate:null,stockInitDate:null,stockDates:{},stockExclus:{},bons:[],paiementsPart:[],bonsConfig:{},inventaires:[],historique:[],ventes:[],prixMatieres:{},seuilsCommande:{},chargesFixes:[],chargesVariables:[],chargesExceptionnelles:[],sauvegardes:[],dateLancement:null,pertTheorique:0,commandes:[],fermetures:[]};
+let DB={recettes:[],combos:[],matieres:{},stock:{},stockPrev:{},stockPrevDate:null,stockInitDate:null,stockDates:{},stockExclus:{},tpeCommission:0,bons:[],paiementsPart:[],bonsConfig:{},inventaires:[],historique:[],ventes:[],prixMatieres:{},seuilsCommande:{},chargesFixes:[],chargesVariables:[],chargesExceptionnelles:[],sauvegardes:[],dateLancement:null,pertTheorique:0,commandes:[],fermetures:[]};
 let currentUser=null, userRole=null, unsubscribe=null;
 
 // ==================== AUTH ====================
@@ -904,6 +904,7 @@ function startFirebaseSync(){
     DB.stockInitDate=data.stockInitDate||null;
     DB.stockDates=data.stockDates||{};
     DB.stockExclus=data.stockExclus||{};
+    DB.tpeCommission=Number(data.tpeCommission)||0;
     DB.inventaires=data.inventaires?Object.values(data.inventaires).sort((a,b)=>a.date>b.date?1:-1):[];
     DB.historique=data.historique?Object.values(data.historique).sort((a,b)=>a.date>b.date?1:-1):[];
     DB.ventes=data.ventes?Object.values(data.ventes).sort((a,b)=>a.date>b.date?1:-1):[];
@@ -2358,6 +2359,7 @@ const tmpVente={};
 let posCart=[]; // [{recetteId,recetteNom,prixUnit,image,supplementId,supplementNom,supplementPrix,toppingId,toppingNom,toppingPrix,qty,cartKey}]
 let posCurrentCat=null;
 let posBonRemises=0; // bons de réduction Nta Chef (−valeur du bon) du panier en cours
+let posTpe=false;    // la vente en cours est payée par carte (TPE)
 let posBonsCafe=[];  // bons café offert : [{recetteId,nom,prix,qty}] — remise = prix du café
 
 const POS_COLORS=[
@@ -2372,7 +2374,7 @@ function buildVenteForm(){
   const now=new Date();
   document.getElementById('vente-date-label').textContent=now.toLocaleDateString('fr-FR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
   posCart=[];
-  posBonRemises=0;posBonsCafe=[];
+  posBonRemises=0;posBonsCafe=[];posTpe=false;
   posCurrentCat=null;
   posRenderCategories();
   posUpdateCartBar();
@@ -2829,6 +2831,8 @@ function posGrossTotal(){return posCart.reduce((s,i)=>s+i.qty*i.prixUnit,0);}
 function posRemiseTotal(){return posBonRemises*bonsCfg().remise+posBonsCafe.reduce((s,b)=>s+b.qty*b.prix,0);}
 function posNetTotal(){return posGrossTotal()-posRemiseTotal();}
 
+window.posSetTpe=function(v){posTpe=!!v;posUpdateCartBar();};
+
 function posUpdateCartBar(){
   const bar=document.getElementById('pos-cart-bar');
   if(!bar)return;
@@ -2837,7 +2841,9 @@ function posUpdateCartBar(){
   if(totalItems===0){
     bar.innerHTML='<div style="text-align:center;color:var(--text3);font-size:12px;padding:4px 0;">Panier vide — sélectionne un produit</div>';
   } else {
-    bar.innerHTML=`<div style="display:flex;gap:8px;">
+    bar.innerHTML=`<label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;margin-bottom:8px;padding:8px 10px;border-radius:var(--radius-sm);cursor:pointer;background:${posTpe?'var(--blue-light)':'var(--surface2)'};color:${posTpe?'var(--blue)':'var(--text2)'};border:0.5px solid ${posTpe?'var(--blue)':'var(--border)'};">
+      <input type="checkbox" ${posTpe?'checked':''} onchange="posSetTpe(this.checked)" style="width:18px;height:18px;"> 💳 Paiement par carte (TPE)</label>
+    <div style="display:flex;gap:8px;">
       <button class="btn btn-secondary" style="flex:1;font-size:13px;" onclick="posShowCart()">🛒 ${totalItems} article${totalItems>1?'s':''} — ${fmtDH(totalPrice)}</button>
       <button class="btn btn-primary" style="flex:1;font-size:13px;" onclick="saveVente()">✅ Valider</button>
     </div>`;
@@ -3082,6 +3088,7 @@ window.posUpdateMonnaie=function(){
 window.saveVente=async function(){
   if(posCart.length===0){toast('Aucune vente saisie');return;}
   if(posNetTotal()<0){toast('❌ Réduction supérieure au total');return;}
+  const tpeFlagAtSave=posTpe;
   const now=new Date();let total=0;const entries=[];
   for(const item of posCart){
     const entry={
@@ -3107,7 +3114,7 @@ window.saveVente=async function(){
     }
     entries.push(entry);
     total+=item.qty*item.prixUnit;
-    await pushToFirebase('ventes',{...entry,date:now.toISOString()});
+    await pushToFirebase('ventes',{...entry,...(posTpe?{tpe:true}:{}),date:now.toISOString()});
   }
   const cfgB=bonsCfg();
   if(posBonRemises>0){
@@ -3120,14 +3127,15 @@ window.saveVente=async function(){
     total-=b.qty*b.prix;
   }
   await pushToFirebase('historique',{type:'vente',date:now.toISOString(),entries,total});
-  posCart=[];posBonRemises=0;posBonsCafe=[];
+  posCart=[];posBonRemises=0;posBonsCafe=[];posTpe=false;
   closeModal('modal-vente');
+  const tpeUsed=entries.length>0&&tpeFlagAtSave;
   const nbCombos=entries.filter(e=>e.isComboWrapper).length;
   const nbProds=entries.filter(e=>!e.comboId).length;
   const parts=[];
   if(nbCombos>0)parts.push(`${nbCombos} menu${nbCombos>1?'s':''}`);
   if(nbProds>0)parts.push(`${nbProds} produit${nbProds>1?'s':''}`);
-  toast(`✅ ${parts.join(' + ')||entries.length+' éléments'} — ${fmtDH(total)}`);
+  toast(`✅ ${parts.join(' + ')||entries.length+' éléments'} — ${fmtDH(total)}${tpeUsed?' · 💳 TPE':''}`);
 };
 
 // Correction des ventes du jour
@@ -3217,10 +3225,11 @@ window.correctQty=async function(nom,delta){
   keys.forEach(k=>{totalQty+=all[k].qty;});
   const newQty=Math.max(0,totalQty+delta);
   if(newQty===totalQty)return;
+  const allTpe=keys.length>0&&keys.every(k=>all[k].tpe);
   for(const k of keys){await remove(ref(db,'stockapp/ventes/'+k));}
   if(newQty>0){
     const r=DB.recettes.find(x=>x.nom===nom);
-    await pushToFirebase('ventes',{recetteId:r?.id||0,recetteNom:nom,qty:newQty,prixUnit:r?.prix||0,date:new Date().toISOString()});
+    await pushToFirebase('ventes',{recetteId:r?.id||0,recetteNom:nom,qty:newQty,prixUnit:r?.prix||0,...(allTpe?{tpe:true}:{}),date:new Date().toISOString()});
   }
   const el=document.getElementById('corr-qty-'+nom.replace(/\s/g,'_'));
   if(el)el.textContent=newQty;
@@ -3360,6 +3369,7 @@ function _renderHistEntryCard(h,opts){
         <span class="badge badge-purple">+${fmtDH(h.total||0)}</span>
       </div></div></div>`;
   }
+  const isTpe=DB.ventes.some(v=>v.date===h.date&&v.tpe);
   const summary=_summarizeEntries(h.entries||[]);
   const details=isOpen?`<div style="padding:8px 4px;border-top:0.5px solid var(--border);margin-top:6px;">${_renderEntryDetails(h.entries||[])}</div>`:'';
   return `<div class="card" style="margin-bottom:5px;cursor:pointer;" onclick="toggleHistEntry('${h.date}')">
@@ -3370,6 +3380,7 @@ function _renderHistEntryCard(h,opts){
           <div style="font-size:11px;color:var(--text3);">${summary}</div>
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+          <button onclick="event.stopPropagation();toggleVenteTpe('${h.date}')" title="Basculer TPE" style="border:0.5px solid ${isTpe?'var(--blue)':'var(--border)'};background:${isTpe?'var(--blue-light)':'var(--surface2)'};color:${isTpe?'var(--blue)':'var(--text3)'};border-radius:6px;font-size:11px;font-weight:600;padding:3px 7px;cursor:pointer;">💳${isTpe?' TPE':''}</button>
           <span class="badge badge-green">${fmtDH(h.total||0)}</span>
           <span style="font-size:14px;color:var(--text3);">${isOpen?'⌄':'›'}</span>
         </div>
@@ -3732,7 +3743,11 @@ window.openModal_fermeture_setup = function() {
   renderFermetureAchats();
 
   document.getElementById('fermeture-montant').value = '';
-  document.getElementById('fermeture-tpe').value = '';
+  const tpeJ = tpeTotalJour(todayStr);
+  document.getElementById('fermeture-tpe').value = tpeJ.nb > 0 ? Math.max(0, tpeJ.montant).toFixed(2) : '';
+  document.getElementById('fermeture-tpe-hint').textContent = tpeJ.nb > 0
+    ? `Pré-rempli : ${tpeJ.nb} paiement(s) TPE cochés en caisse aujourd'hui. Comparez avec le ticket du TPE et corrigez si besoin.`
+    : 'Reprenez le total de la journée sur le ticket du TPE. Ce montant n\'est pas dans le tiroir : il est retiré du théorique.';
   document.getElementById('fermeture-note').value = '';
 
   // Reset écart
@@ -3742,6 +3757,8 @@ window.openModal_fermeture_setup = function() {
   document.getElementById('fermeture-ecart-val').textContent = '—';
   document.getElementById('fermeture-ecart-val').style.color = 'var(--text2)';
   document.getElementById('fermeture-ecart-hint').textContent = 'Saisissez le montant compté pour calculer l\'écart';
+  _updateFermetureTotaux();
+  updateFermetureEcart();
 };
 
 // Mise à jour dynamique de l'écart quand l'utilisateur tape le montant
@@ -3830,6 +3847,56 @@ window.saveFermeture = async function() {
   closeModal('modal-fermeture');
   const sign = ecart >= 0 ? '+' : '';
   toast(`🔒 Fermeture enregistrée — Écart : ${sign}${fmtDH(ecart)}`);
+};
+
+// ==================== PAIEMENTS TPE ====================
+// Une vente est « TPE » quand ses lignes portent tpe:true. Montant d'un paiement TPE = lignes de la vente
+// moins les remises de bons de la même saisie. pred(ds) filtre sur la date (YYYY-MM-DD).
+function tpeStatsFor(pred){
+  const tx={};
+  DB.ventes.forEach(v=>{if(!v.tpe)return;if(!pred(fmtDate(new Date(v.date))))return;tx[v.date]=(tx[v.date]||0)+v.qty*v.prixUnit;});
+  DB.bons.forEach(b=>{if(tx[b.date]!=null)tx[b.date]-=b.qty*(b.remiseUnit||0);});
+  const vals=Object.values(tx);
+  const montant=vals.reduce((a,b)=>a+b,0);
+  let net=0;
+  DB.ventes.forEach(v=>{if(pred(fmtDate(new Date(v.date))))net+=v.qty*v.prixUnit;});
+  DB.bons.forEach(b=>{if(pred(fmtDate(new Date(b.date))))net-=b.qty*(b.remiseUnit||0);});
+  return{montant,nb:vals.length,net,especes:net-montant};
+}
+function tpeTotalJour(ds){return tpeStatsFor(d=>d===ds);}
+// Frais bancaires du TPE sur une période = commission (%) × montants payés par carte
+function fraisTpe(pred){return tpeStatsFor(pred).montant*(DB.tpeCommission||0)/100;}
+window.saveTpeCommission=async function(){
+  if(userRole!=='maitre'){toast('⛔ Réservé au compte Maître');return;}
+  const v=parseFloat(document.getElementById('tpe-comm-input').value);
+  if(isNaN(v)||v<0||v>100){toast('❌ Taux entre 0 et 100 %');return;}
+  await updateFirebase({tpeCommission:v});
+  toast('✅ Commission TPE : '+v+' %');
+};
+function tpeBlockHTML(pred){
+  const t=tpeStatsFor(pred);
+  const part=t.net>0?(t.montant/t.net*100):0;
+  return `<div class="section-title">💳 Paiements TPE</div>
+    <div class="kpi-grid">
+      <div class="kpi-card"><div class="kpi-label">Payé par carte</div><div class="kpi-value" style="color:var(--blue);">${t.montant.toFixed(0)}</div><div class="kpi-sub">DH · ${t.nb} paiement${t.nb>1?'s':''}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Espèces / autres</div><div class="kpi-value">${t.especes.toFixed(0)}</div><div class="kpi-sub">DH hors TPE</div></div>
+      <div class="kpi-card"><div class="kpi-label">Part du TPE</div><div class="kpi-value">${part.toFixed(0)}%</div><div class="kpi-sub">des ventes caisse</div></div>
+      <div class="kpi-card"><div class="kpi-label">Ticket moyen TPE</div><div class="kpi-value">${t.nb>0?(t.montant/t.nb).toFixed(1):'—'}</div><div class="kpi-sub">DH</div></div>
+    </div>
+    ${(DB.tpeCommission||0)>0?`<div style="font-size:12px;color:var(--text2);margin:-4px 0 10px;display:flex;justify-content:space-between;background:var(--surface2);border-radius:8px;padding:8px 10px;"><span>Frais bancaires TPE (${DB.tpeCommission} %)</span><strong style="color:var(--danger);">−${fmtDH(t.montant*DB.tpeCommission/100)}</strong></div>`:''}
+    ${t.nb===0?'<div style="font-size:11px;color:var(--text3);margin:-4px 0 10px;">Aucun paiement TPE sur cette période. Cochez « 💳 Paiement par carte » en caisse, ou dans l\'historique caisse.</div>':''}`;
+}
+// Bascule TPE sur une vente déjà enregistrée (correction d'une erreur)
+window.toggleVenteTpe=async function(date){
+  const snap=await get(ref(db,'stockapp/ventes'));
+  if(!snap.exists())return;
+  const all=snap.val();
+  const keys=Object.keys(all).filter(k=>all[k].date===date);
+  if(keys.length===0){toast('❌ Vente introuvable');return;}
+  const devientTpe=!keys.some(k=>all[k].tpe);
+  const upd={};keys.forEach(k=>{upd['ventes/'+k+'/tpe']=devientTpe?true:null;});
+  await updateFirebase(upd);
+  toast(devientTpe?'💳 Vente marquée en TPE':'💵 Vente marquée hors TPE');
 };
 
 // ==================== BONS PARTENAIRE (Nta Chef) ====================
@@ -4120,6 +4187,7 @@ function calcMargeNetteCumulee(dateLancement){
   var chargesFixes = calcChargesFixesPeriode(debut, fin);
   var chargesVar = calcChargesVarPeriode(debut, fin);
   var chargesExc = calcChargesExcPeriode(debut, fin);
+  var fraisTpeC = fraisTpe(function(ds){ return ds >= d1 && ds <= d2; });
   var nbMoisEcoules = (fin.getFullYear() - debut.getFullYear()) * 12
     + (fin.getMonth() - debut.getMonth());
   if(fin.getDate() >= debut.getDate()) nbMoisEcoules += 1;
@@ -4134,8 +4202,9 @@ function calcMargeNetteCumulee(dateLancement){
     chargesVar: chargesVar,
     chargesExc: chargesExc,
     nbMoisEcoules: nbMoisEcoules,
-    margeNette: ca - coutMatAvecPerte - chargesFixes - chargesVar - chargesExc,
-    margeNetteAvecPerte: ca - coutMatAvecPerte - chargesFixes - chargesVar - chargesExc
+    fraisTpe: fraisTpeC,
+    margeNette: ca - coutMatAvecPerte - chargesFixes - chargesVar - chargesExc - fraisTpeC,
+    margeNetteAvecPerte: ca - coutMatAvecPerte - chargesFixes - chargesVar - chargesExc - fraisTpeC
   };
 }
 
@@ -4159,7 +4228,7 @@ function calcProjectionAmortissement(resteAAmortir, dateLancement){
     var mb=ca2-cout2;
     var cf=getChargesFixesTotales();
     var cv=calcChargesVarPeriode(deb,fin2);
-    var mn=mb-cf-cv;
+    var mn=mb-cf-cv-fraisTpe(function(ds){return ds>=d1&&ds<=d2;});
     if(ca2>0) margesParMois.push(mn);
   }
   if(margesParMois.length === 0) return null;
@@ -4185,15 +4254,16 @@ function calcPeriode(dateDebut, dateFin){
   // Charges fixes: mois entiers calendaires sur la période
   var chargesFixes=calcChargesFixesPeriode(dateDebut,dateFin);
   var chargesVar=calcChargesVarPeriode(dateDebut,dateFin);
-  var margeNette=margeBrute-chargesFixes-chargesVar;
-  var margeNetteAvecPerte=margeBruteAvecPerte-chargesFixes-chargesVar;
+  var fraisTpeP=fraisTpe(function(ds){return ds>=d1&&ds<=d2;});
+  var margeNette=margeBrute-chargesFixes-chargesVar-fraisTpeP;
+  var margeNetteAvecPerte=margeBruteAvecPerte-chargesFixes-chargesVar-fraisTpeP;
   var jours=new Set(ventesP.map(function(v){return fmtDate(new Date(v.date));})).size;
   var byProd={};
   ventesP.forEach(function(v){ if(v.isComboWrapper||v.isComboComponent)return; byProd[v.recetteNom]=(byProd[v.recetteNom]||0)+v.qty; });
   var topProds=Object.entries(byProd).sort(function(a,b){return b[1]-a[1];});
   return { ca:ca, units:units, coutMat:coutMat, coutMatAvecPerte:coutMatAvecPerte,
     margeBrute:margeBrute, margeBruteAvecPerte:margeBruteAvecPerte,
-    chargesFixes:chargesFixes, chargesVar:chargesVar,
+    chargesFixes:chargesFixes, chargesVar:chargesVar, fraisTpe:fraisTpeP,
     margeNette:margeNette, margeNetteAvecPerte:margeNetteAvecPerte,
     jours:jours, topProds:topProds, tauxPerte:taux,
     pctBrute:ca>0?(margeBrute/ca*100):0, pctNette:ca>0?(margeNette/ca*100):0,
@@ -4349,7 +4419,18 @@ function renderFinance(){
         }).join('');
   }
   if(financeTab==='charges'){
+    var tpeMois=tpeStatsFor(function(ds){return ds.slice(0,7)===mk;});
     bodyHTML=
+      '<div class="card" style="margin-bottom:12px;"><div class="card-body">'+
+        '<div class="section-title" style="margin-top:0;">💳 Commission bancaire TPE</div>'+
+        '<div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Pourcentage prélevé par la banque sur chaque paiement par carte. Il est déduit des marges nettes (Analyse, Finance, amortissement).</div>'+
+        '<div style="display:flex;align-items:center;gap:8px;">'+
+          '<input class="input" type="number" id="tpe-comm-input" min="0" max="100" step="0.01" inputmode="decimal" placeholder="0" value="'+(DB.tpeCommission||'')+'" style="flex:1;text-align:right;">'+
+          '<span style="font-size:13px;color:var(--text2);">%</span>'+
+          '<button class="btn btn-sm btn-primary" onclick="saveTpeCommission()">Enregistrer</button>'+
+        '</div>'+
+        '<div style="font-size:12px;color:var(--text2);margin-top:8px;">Ce mois : '+fmtDH(tpeMois.montant)+' payés par carte → frais <strong style="color:var(--danger);">'+fmtDH(tpeMois.montant*(DB.tpeCommission||0)/100)+'</strong></div>'+
+      '</div></div>'+
       '<div class="kpi-grid">'+
         '<div class="kpi-card"><div class="kpi-label">Charges fixes / mois</div><div class="kpi-value">'+totalChargesFixes.toFixed(0)+'</div><div class="kpi-sub">DH</div></div>'+
         '<div class="kpi-card"><div class="kpi-label">Charges var. (ce mois)</div><div class="kpi-value">'+totalChargesVar.toFixed(0)+'</div><div class="kpi-sub">DH</div></div>'+
@@ -4437,6 +4518,7 @@ function renderFinance(){
               '<span style="font-size:13px;">− Charges fixes (prorata)</span><span style="font-weight:600;">'+fmtDH(cumulResult.chargesFixes)+'</span></div>'+
             '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--border);color:var(--amber);">'+
               '<span style="font-size:13px;">− Charges variables</span><span style="font-weight:600;">'+fmtDH(cumulResult.chargesVar)+'</span></div>'+
+            (cumulResult.fraisTpe>0?'<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--border);color:var(--amber);"><span style="font-size:13px;">− Frais bancaires TPE ('+DB.tpeCommission+' %)</span><span style="font-weight:600;">'+fmtDH(cumulResult.fraisTpe)+'</span></div>':'')+
             '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--border);color:var(--danger);">'+
               '<span style="font-size:13px;">− Charges exceptionnelles (payées)</span><span style="font-weight:600;">'+fmtDH(cumulResult.chargesExc)+'</span></div>'+
             '<div style="display:flex;justify-content:space-between;padding:10px 8px;background:'+(margeNetteCumulee>=0?'var(--accent-light)':'var(--danger-light)')+';border-radius:6px;margin-top:4px;">'+
@@ -4498,6 +4580,7 @@ function renderFinance(){
                 '<span style="font-size:13px;">− Charges fixes ('+nbJours+'j prop.)</span><span style="font-weight:600;">'+fmtDH(pR.chargesFixes)+'</span></div>'+
               '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--border);color:var(--amber);">'+
                 '<span style="font-size:13px;">− Charges variables</span><span style="font-weight:600;">'+fmtDH(pR.chargesVar)+'</span></div>'+
+              (pR.fraisTpe>0?'<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--border);color:var(--amber);"><span style="font-size:13px;">− Frais bancaires TPE ('+DB.tpeCommission+' %)</span><span style="font-weight:600;">'+fmtDH(pR.fraisTpe)+'</span></div>':'')+
               '<div style="display:flex;justify-content:space-between;padding:10px 8px;background:'+(pR.margeNette>=0?'var(--accent-light)':'var(--danger-light)')+';border-radius:6px;margin-top:4px;margin-bottom:8px;">'+
                 '<span style="font-size:14px;font-weight:700;color:'+colorN+';">= Marge nette ('+pR.pctNette.toFixed(1)+'%)</span>'+
                 '<span style="font-size:16px;font-weight:700;color:'+colorN+';">'+fmtDH(pR.margeNette)+'</span>'+
@@ -4695,9 +4778,10 @@ function calcMargeNeteMois(mk){
   const chargesVar=getChargesVariablesMois(mk);
   const totalAchats=getTotalAchatsMois(mk);
   const margeBrute=caMonth-coutMat;
-  const margeNette=caMonth-coutMat-chargesFixes-chargesVar;
-  const margeNetteAvecPerte=caMonth-coutMatAvecPerte-chargesFixes-chargesVar;
-  return{ca:caMonth,coutMat,coutMatAvecPerte,chargesFixes,chargesVar,totalAchats,
+  const fraisTpeM=fraisTpe(ds=>ds.slice(0,7)===mk);
+  const margeNette=caMonth-coutMat-chargesFixes-chargesVar-fraisTpeM;
+  const margeNetteAvecPerte=caMonth-coutMatAvecPerte-chargesFixes-chargesVar-fraisTpeM;
+  return{ca:caMonth,coutMat,coutMatAvecPerte,chargesFixes,chargesVar,fraisTpe:fraisTpeM,totalAchats,
     margeBrute,margeNette,margeNetteAvecPerte,taux};
 }
 
@@ -4742,7 +4826,8 @@ function renderKPI(){
     totalChargesFixes=getChargesFixesTotales()*nbMoisDepuisLancement;
   } else { totalChargesFixes=getChargesFixesTotales(); }
   const totalChargesVar=DB.chargesVariables.reduce((s,c)=>s+c.montant,0);
-  const totalCharges=totalChargesFixes+totalChargesVar;
+  const totalFraisTpe=fraisTpe(()=>true);
+  const totalCharges=totalChargesFixes+totalChargesVar+totalFraisTpe;
   const margeNette=totalCA-totalCoutMat-totalCharges;
   const margeNetteAvecPerte=totalCA-totalCoutMatAvecPerte-totalCharges;
   const ecarts=hasSnapshot?mps.filter(name=>DB.stockPrev[name]!==undefined).map(name=>({name,prevVal:DB.stockPrev[name]||0,reelVal:DB.stock[name]||0,ecart:(DB.stock[name]||0)-(DB.stockPrev[name]||0),unit:DB.matieres[name]?.unit})):[];
@@ -4799,6 +4884,7 @@ function renderKPI(){
       <div class="kpi-card"><div class="kpi-label">Jours actifs</div><div class="kpi-value">${jours}</div></div>
       <div class="kpi-card"><div class="kpi-label">Moy. / jour actif</div><div class="kpi-value">${jours>0?(totalCA/jours).toFixed(0):'—'}</div><div class="kpi-sub">DH</div></div>
     </div>
+    ${tpeBlockHTML(()=>true)}
     ${isMaitre?`
     <div class="section-title">Marges (total)</div>
     ${!dateLancementKPI?'<div class="alert alert-amber">⚠️ Définissez la date de lancement dans Finance → Amortissement pour un calcul exact des charges.</div>':''}
@@ -4831,6 +4917,10 @@ function renderKPI(){
         <span style="font-size:12px;">Charges variables (toutes)</span>
         <span style="font-weight:600;color:var(--amber);">${totalChargesVar.toFixed(0)} DH</span>
       </div>
+      ${totalFraisTpe>0?`<div style="display:flex;justify-content:space-between;padding:8px 0;border-top:0.5px solid var(--border);">
+        <span style="font-size:12px;">Frais bancaires TPE (${DB.tpeCommission} %)</span>
+        <span style="font-weight:600;color:var(--amber);">${totalFraisTpe.toFixed(0)} DH</span>
+      </div>`:''}
     </div></div>`:''}
     ${hasCurve?`<div class="section-title">Évolution CA mensuel</div><div class="card"><div class="card-body" style="padding:12px;"><div class="pill-row" style="margin-bottom:8px;"><div class="pill ${chartPeriod===3?'active':''}" onclick="setChartPeriod(3)">3 mois</div><div class="pill ${chartPeriod===6?'active':''}" onclick="setChartPeriod(6)">6 mois</div><div class="pill ${chartPeriod===12?'active':''}" onclick="setChartPeriod(12)">12 mois</div></div><div style="height:180px;"><canvas id="ca-chart"></canvas></div></div></div>`:
     `<div class="card"><div class="card-body" style="text-align:center;padding:20px;"><div style="font-size:24px;margin-bottom:8px;">📈</div><div style="font-size:13px;font-weight:500;margin-bottom:4px;">Courbe disponible dès 3 mois</div><div style="font-size:12px;color:var(--text3);">${moisAvecData.length}/3 mois avec données</div><div class="progress-bar" style="margin-top:12px;"><div class="progress-fill" style="width:${Math.min(100,moisAvecData.length/3*100).toFixed(0)}%;background:var(--accent);"></div></div></div></div>`}
@@ -4852,6 +4942,7 @@ function renderKPI(){
       <div class="kpi-card"><div class="kpi-label">Jours actifs</div><div class="kpi-value">${joursMonth}</div></div>
       <div class="kpi-card"><div class="kpi-label">Moy. / jour actif</div><div class="kpi-value">${joursMonth>0?(caMonth/joursMonth).toFixed(0):'—'}</div><div class="kpi-sub">DH</div></div>
     </div>
+    ${tpeBlockHTML(ds=>ds.slice(0,7)===mk)}
     ${isMaitre?`
     <div class="section-title">Marges — ${MOIS[kpiCalMonth]} ${kpiCalYear}</div>
     <div class="kpi-grid">
@@ -4925,6 +5016,7 @@ function renderKPI(){
       <div class="kpi-card"><div class="kpi-label">Panier moyen</div><div class="kpi-value">${unitsJour>0?(caJour/unitsJour).toFixed(1):'—'}</div><div class="kpi-sub">DH/unité</div></div>
       <div class="kpi-card"><div class="kpi-label">Produits différents</div><div class="kpi-value">${Object.keys(byProdJour).length}</div></div>
     </div>
+    ${tpeBlockHTML(ds=>ds===selDayStr)}
     ${isMaitre?`
     <div class="section-title">Marges — ${dayDateLabel}</div>
     <div class="kpi-grid">
